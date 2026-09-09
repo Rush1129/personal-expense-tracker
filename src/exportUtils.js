@@ -3,8 +3,32 @@ import { autoTable } from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { formatINR, formatDate, formatTime, getCategoryInfo, calculateTotals } from './utils';
 
-export function exportToPDF(transactions, dateRange) {
+// Load and register Noto Sans fonts with jsPDF for ₹ symbol support
+async function registerNotoSansFont(doc) {
+  const loadFont = async (url, filename, fontName, fontStyle) => {
+    const response = await fetch(url);
+    const buffer = await response.arrayBuffer();
+    const base64 = btoa(
+      new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+    );
+    doc.addFileToVFS(filename, base64);
+    doc.addFont(filename, fontName, fontStyle);
+  };
+
+  await Promise.all([
+    loadFont('/fonts/NotoSans-Regular.ttf', 'NotoSans-Regular.ttf', 'NotoSans', 'normal'),
+    loadFont('/fonts/NotoSans-Bold.ttf', 'NotoSans-Bold.ttf', 'NotoSans', 'bold'),
+  ]);
+
+  doc.setFont('NotoSans', 'normal');
+}
+
+export async function exportToPDF(transactions, dateRange) {
   const doc = new jsPDF();
+
+  // Register Noto Sans font for ₹ symbol support
+  await registerNotoSansFont(doc);
+
   const { totalIncome, totalExpense, netBalance } = calculateTotals(transactions);
 
   // Header
@@ -75,10 +99,12 @@ export function exportToPDF(transactions, dateRange) {
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 9,
+      font: 'NotoSans',
     },
     bodyStyles: {
       fontSize: 8,
       textColor: [30, 41, 59],
+      font: 'NotoSans',
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252],

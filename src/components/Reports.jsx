@@ -229,7 +229,7 @@ export default function Reports() {
       {/* Export buttons */}
       <div className="grid grid-cols-2 gap-3">
         <button
-          onClick={() => exportToPDF(filtered, dateRange)}
+          onClick={() => exportToPDF(filtered, dateRange).catch(() => {})}
           disabled={filtered.length === 0}
           className="glass-card rounded-xl py-3.5 flex items-center justify-center gap-2 text-sm font-semibold text-expense press-effect hover:bg-expense/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
