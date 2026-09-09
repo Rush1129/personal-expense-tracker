@@ -1,0 +1,218 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #6366f1;
+  --color-primary-light: #818cf8;
+  --color-primary-dark: #4f46e5;
+  --color-income: #16a34a;
+  --color-income-light: #22c55e;
+  --color-income-bg: #dcfce7;
+  --color-income-bg-dark: #052e16;
+  --color-expense: #dc2626;
+  --color-expense-light: #ef4444;
+  --color-expense-bg: #fee2e2;
+  --color-expense-bg-dark: #450a0a;
+  --color-surface: #ffffff;
+  --color-surface-dark: #1e293b;
+  --color-bg: #f8fafc;
+  --color-bg-dark: #0f172a;
+  --color-text: #0f172a;
+  --color-text-dark: #f1f5f9;
+  --color-text-muted: #64748b;
+  --color-text-muted-dark: #94a3b8;
+  --color-border: #e2e8f0;
+  --color-border-dark: #334155;
+}
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    min-height: 100dvh;
+    overflow-x: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  .dark body {
+    background-color: var(--color-bg-dark);
+    color: var(--color-text-dark);
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 999px;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: var(--color-border-dark);
+  }
+}
+
+@layer utilities {
+  /* Glass card effect */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .dark .glass-card {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(51, 65, 85, 0.5);
+  }
+
+  /* Gradient backgrounds */
+  .gradient-primary {
+    background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
+  }
+
+  .gradient-income {
+    background: linear-gradient(135deg, var(--color-income) 0%, #34d399 100%);
+  }
+
+  .gradient-expense {
+    background: linear-gradient(135deg, var(--color-expense) 0%, #f87171 100%);
+  }
+
+  /* Entry animations */
+  .slide-up {
+    animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .fade-in {
+    animation: fadeIn 0.3s ease forwards;
+  }
+
+  .scale-in {
+    animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Safe area insets for mobile */
+  .safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
+  }
+
+  .safe-top {
+    padding-top: max(env(safe-area-inset-top, 0px), 0px);
+  }
+
+  /* Active press effect */
+  .press-effect {
+    transition: transform 0.1s ease;
+  }
+  .press-effect:active {
+    transform: scale(0.97);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-border) 25%,
+    #f1f5f9 50%,
+    var(--color-border) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+.dark .skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-border-dark) 25%,
+    #475569 50%,
+    var(--color-border-dark) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* Toast overrides */
+.toast-custom {
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* Bottom sheet backdrop */
+.backdrop-blur-overlay {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Number input - hide spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Hide scrollbar but allow scrolling (time picker wheels) */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
