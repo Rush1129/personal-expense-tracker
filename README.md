@@ -53,8 +53,8 @@ To persist data in the cloud and sync across devices:
 cp .env.example .env
 
 # Edit .env and paste your values:
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbG...your-anon-key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=eyJhbG...your-anon-key
 ```
 
 ### 5. Restart the dev server
@@ -77,8 +77,8 @@ vercel
 ```
 
 When prompted, set the environment variables:
-- `VITE_SUPABASE_URL` → your Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` → your anon key
+- `SUPABASE_URL` → your Supabase project URL
+- `SUPABASE_ANON_KEY` → your anon key
 
 Or set them in **Vercel Dashboard → Settings → Environment Variables**.
 

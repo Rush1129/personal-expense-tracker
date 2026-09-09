@@ -2,15 +2,15 @@ import { createClient } from '@supabase/supabase-js';
 
 // These will be set from environment variables.
 // Create a .env file with:
-//   VITE_SUPABASE_URL=https://your-project.supabase.co
-//   VITE_SUPABASE_ANON_KEY=your-anon-key
+//   SUPABASE_URL=https://your-project.supabase.co
+//   SUPABASE_ANON_KEY=your-anon-key
 //
 // Or leave them unset to run in offline-only mode (IndexedDB only).
 
-const rawUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/^["']|["']$/g, '');
+const rawUrl = (import.meta.env.SUPABASE_URL || '').trim().replace(/^["']|["']$/g, '');
 // Strip trailing slashes and /rest/v1 if user accidentally copied the REST endpoint
 const supabaseUrl = rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim().replace(/^["']|["']$/g, '');
+const supabaseAnonKey = (import.meta.env.SUPABASE_ANON_KEY || '').trim().replace(/^["']|["']$/g, '');
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
