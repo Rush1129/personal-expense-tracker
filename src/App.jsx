@@ -113,7 +113,7 @@ export default function App() {
           setEditTx(null);
           setShowForm(true);
         }}
-        className="fixed bottom-24 right-5 sm:right-auto sm:left-1/2 sm:translate-x-[calc(256px-28px)] w-14 h-14 gradient-primary rounded-full flex items-center justify-center shadow-xl shadow-primary/30 press-effect hover:shadow-2xl hover:shadow-primary/40 transition-all duration-200 z-40"
+        className="fixed bottom-30 right-5 sm:right-auto sm:left-1/2 sm:translate-x-[calc(256px-28px)] w-13 h-13 gradient-primary rounded-full flex items-center justify-center shadow-xl shadow-primary/20 press-effect hover:shadow-2xl hover:shadow-primary/40 transition-all duration-200 z-40"
         aria-label="Add new entry"
       >
         <Plus className="w-6 h-6 text-white" strokeWidth={2.5} />
