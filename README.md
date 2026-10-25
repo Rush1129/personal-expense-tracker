@@ -4,7 +4,8 @@ A beautiful, offline-first Progressive Web App for tracking your daily income an
 
 ## Features
 
-- **📝 Add/Edit/Delete** income and expense entries with category tagging
+- **🎙️ Voice entry** — tap **Speak**, say *"Spent 250 on lunch yesterday at 2 pm"*, and the amount, date, time, description and category are filled in for you
+- **📝 Add/Edit/Delete** income and expense entries with category tagging (auto-suggested from the description)
 - **📅 Calendar date picker** with optional scrollable time selector
 - **📊 Reports & Charts** — category pie chart, daily bar chart, 6-month trend
 - **📥 Export** clean PDF and Excel reports for any date range
@@ -102,6 +103,18 @@ npm run build
 
 ---
 
+## Voice Entry
+
+Everything is free and needs no API keys.
+
+| Step | How |
+|------|-----|
+| Speech → text | Browser's built-in speech recognition (`en-IN`). If it's missing or fails (Firefox, Brave, some iOS PWAs), falls back to **Whisper tiny** running on-device (~41 MB, downloaded once). Choose *On-device only* in Settings to keep audio on the phone. |
+| Text → amount, date, time, type | Rule-based parser in [`src/voice/parseTransaction.js`](src/voice/parseTransaction.js): handles "2,500", "two hundred and fifty", "1.5k", "2 lakh", "yesterday", "last Friday", "on the 5th", "25/09", "at 7:30 pm", "this morning", income words like "received"/"salary", etc. |
+| Description → category | Keyword rules tuned for Indian merchants (Swiggy, Ola, DMart, Jio…) in [`src/voice/categoryRules.js`](src/voice/categoryRules.js). When no keyword matches, an on-device **MiniLM** sentence-embedding model (~23 MB) picks the closest category (e.g. "medicines" → Bills, "haircut" → Shopping). |
+
+The models run in a Web Worker via [transformers.js](https://huggingface.co/docs/transformers.js), loaded from the jsDelivr CDN on first use, so they add nothing to the app bundle. To add a category or improve detection, edit `CATEGORIES` in `utils.js` and the matching keywords/example phrases in `categoryRules.js`.
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -115,6 +128,7 @@ npm run build
 | Charts | Recharts |
 | Icons | Lucide React |
 | PWA | vite-plugin-pwa |
+| Voice | Web Speech API, Whisper tiny + MiniLM via transformers.js (on-device) |
 
 ## Data Architecture
 
@@ -148,8 +162,16 @@ src/
 ├── utils.js           # Formatters, categories, helpers
 ├── exportUtils.js     # PDF & Excel export
 ├── index.css          # Tailwind v4 + animations
+├── voice/
+│   ├── parseTransaction.js    # Sentence → amount/date/time/type/description
+│   ├── categoryRules.js       # Category keywords + model example phrases
+│   ├── embeddingClassifier.js # Nearest-category matching on embeddings
+│   ├── useVoiceInput.js       # Mic capture (browser speech / on-device)
+│   ├── aiClient.js            # Promise API for the worker
+│   └── ai.worker.js           # Whisper + MiniLM via transformers.js
 └── components/
     ├── SummaryCard.jsx    # Balance card + income/expense pills
+    ├── VoiceEntry.jsx     # Voice bottom sheet: listen → review → save
     ├── EntryForm.jsx      # Bottom sheet form (add/edit)
     ├── EntryList.jsx      # Date-grouped transaction list
     ├── DatePicker.jsx     # Custom calendar date picker

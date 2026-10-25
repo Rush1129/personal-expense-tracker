@@ -17,6 +17,24 @@ export function AppProvider({ children }) {
     if (stored !== null) return JSON.parse(stored);
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
+  // engine: 'auto' (browser speech, on-device fallback) | 'on-device' (Whisper only)
+  // smartCategories: use the on-device model when keyword rules can't pick a category
+  const [voiceSettings, setVoiceSettings] = useState(() => {
+    const defaults = { engine: 'auto', smartCategories: true };
+    try {
+      return { ...defaults, ...JSON.parse(localStorage.getItem('spendwise-voice') || '{}') };
+    } catch {
+      return defaults;
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('spendwise-voice', JSON.stringify(voiceSettings));
+  }, [voiceSettings]);
+
+  const updateVoiceSettings = useCallback((patch) => {
+    setVoiceSettings((prev) => ({ ...prev, ...patch }));
+  }, []);
 
   // Load transactions from IndexedDB on mount
   const loadTransactions = useCallback(async () => {
@@ -84,6 +102,8 @@ export function AppProvider({ children }) {
     restoreTransaction,
     toggleDarkMode,
     refreshTransactions: loadTransactions,
+    voiceSettings,
+    updateVoiceSettings,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -10,6 +10,13 @@ import { FileDown, FileSpreadsheet, Calendar, ChevronLeft, ChevronRight, Filter 
 
 const CHART_COLORS = ['#6366f1', '#f97316', '#ec4899', '#8b5cf6', '#3b82f6', '#14b8a6', '#f59e0b', '#10b981', '#22c55e', '#06b6d4', '#a855f7', '#e11d48', '#78716c', '#84cc16', '#7c3aed', '#64748b'];
 
+// ₹850 → "₹850", ₹12,000 → "₹12k", ₹1,50,000 → "₹1.5L"
+function formatAxis(v) {
+  if (v >= 100000) return `₹${+(v / 100000).toFixed(1)}L`;
+  if (v >= 1000) return `₹${+(v / 1000).toFixed(1)}k`;
+  return `₹${v}`;
+}
+
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
@@ -136,7 +143,7 @@ export default function Reports() {
   };
 
   return (
-    <div className="space-y-5 pb-28">
+    <div className="space-y-5">
       {/* Period selector */}
       <div className="glass-card rounded-2xl p-4">
         {/* Mode toggle */}
@@ -212,15 +219,15 @@ export default function Reports() {
       <div className="grid grid-cols-3 gap-3">
         <div className="glass-card rounded-xl p-3 text-center">
           <p className="text-[10px] font-semibold text-text-muted dark:text-text-muted-dark uppercase tracking-wider mb-1">Income</p>
-          <p className="text-sm font-bold text-income">{formatINR(totals.totalIncome)}</p>
+          <p className="text-sm font-bold text-income truncate">{formatINR(totals.totalIncome)}</p>
         </div>
         <div className="glass-card rounded-xl p-3 text-center">
           <p className="text-[10px] font-semibold text-text-muted dark:text-text-muted-dark uppercase tracking-wider mb-1">Expenses</p>
-          <p className="text-sm font-bold text-expense">{formatINR(totals.totalExpense)}</p>
+          <p className="text-sm font-bold text-expense truncate">{formatINR(totals.totalExpense)}</p>
         </div>
         <div className="glass-card rounded-xl p-3 text-center">
           <p className="text-[10px] font-semibold text-text-muted dark:text-text-muted-dark uppercase tracking-wider mb-1">Balance</p>
-          <p className={`text-sm font-bold ${totals.netBalance >= 0 ? 'text-income' : 'text-expense'}`}>
+          <p className={`text-sm font-bold truncate ${totals.netBalance >= 0 ? 'text-income' : 'text-expense'}`}>
             {formatINR(Math.abs(totals.netBalance))}
           </p>
         </div>
@@ -271,15 +278,28 @@ export default function Reports() {
                   <Tooltip content={<CustomTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
-              {/* Legend */}
-              <div className="flex flex-wrap gap-2 mt-3">
-                {categoryData.map((cat, i) => (
-                  <div key={i} className="flex items-center gap-1.5 text-xs text-text-muted dark:text-text-muted-dark">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                    <span>{cat.icon} {cat.name}</span>
-                    <span className="font-semibold">{formatINR(cat.value)}</span>
-                  </div>
-                ))}
+              {/* Breakdown */}
+              <div className="space-y-3 mt-4">
+                {categoryData.map((cat, i) => {
+                  const pct = totals.totalExpense > 0 ? (cat.value / totals.totalExpense) * 100 : 0;
+                  return (
+                    <div key={i}>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="flex items-center gap-2 font-semibold text-text dark:text-text-dark">
+                          <span className="text-base leading-none">{cat.icon}</span>
+                          {cat.name}
+                        </span>
+                        <span className="text-text-muted dark:text-text-muted-dark">
+                          <span className="font-bold text-text dark:text-text-dark">{formatINR(cat.value)}</span>
+                          {' · '}{Math.round(pct)}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-bg dark:bg-bg-dark overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: cat.color }} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -290,10 +310,10 @@ export default function Reports() {
               <h3 className="text-sm font-bold text-text dark:text-text-dark mb-4">Daily Breakdown</h3>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={dailyData} barGap={2}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} />
-                  <YAxis tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}k`} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={formatAxis} axisLine={false} tickLine={false} width={40} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--chart-grid)', opacity: 0.5 }} />
                   <Bar dataKey="income" name="Income" fill="#22c55e" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="expense" name="Expense" fill="#ef4444" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -318,9 +338,9 @@ export default function Reports() {
                 <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-            <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} />
-            <YAxis tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}k`} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={formatAxis} axisLine={false} tickLine={false} width={40} />
             <Tooltip content={<CustomTooltip />} />
             <Area type="monotone" dataKey="income" name="Income" stroke="#22c55e" fill="url(#colorIncome)" strokeWidth={2} />
             <Area type="monotone" dataKey="expense" name="Expense" stroke="#ef4444" fill="url(#colorExpense)" strokeWidth={2} />

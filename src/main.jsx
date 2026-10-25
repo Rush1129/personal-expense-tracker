@@ -12,12 +12,16 @@ createRoot(document.getElementById('root')).render(
       <Toaster
         position="bottom-center"
         containerStyle={{
-          bottom: '100px',
+          bottom: '160px',
         }}
         toastOptions={{
           className: 'toast-custom',
           style: {
             fontFamily: 'Inter, sans-serif',
+            background: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
           },
         }}
       />
