@@ -68,6 +68,24 @@ The app will now automatically sync all transactions to Supabase. If the network
 
 ---
 
+## Access Code (optional)
+
+To show a code screen before the app opens, list one or more codes in `.env` (or in your host's environment variables):
+
+```bash
+ACCESS_CODES=sunny-mango-42,blue-kite-77
+```
+
+- Codes are not case-sensitive. Give each person their own code, so you can remove one without affecting the others.
+- A device that enters a valid code is remembered and won't be asked again. Removing that code from `ACCESS_CODES` (and redeploying) asks those devices again.
+- **Settings → Lock this device** forgets the code on the current device.
+- Leave `ACCESS_CODES` empty to turn the screen off.
+- On iPhone, an app added to the Home Screen keeps its own storage, so it asks for the code once more after installing.
+
+> **This is a lock screen, not real security.** The check runs in the browser: only hashes of the codes are shipped, but someone technical can still get past it. Your data is also still reachable directly through the Supabase anon key, so keep this for keeping casual visitors out. Longer codes (two or three words) are harder to guess.
+
+---
+
 ## Deployment
 
 ### Option A: Vercel (Recommended — Free)
@@ -80,6 +98,7 @@ vercel
 When prompted, set the environment variables:
 - `SUPABASE_URL` → your Supabase project URL
 - `SUPABASE_ANON_KEY` → your anon key
+- `ACCESS_CODES` → (optional) codes for the lock screen
 
 Or set them in **Vercel Dashboard → Settings → Environment Variables**.
 

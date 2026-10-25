@@ -5,7 +5,7 @@ import { exportToPDF, exportToExcel } from '../exportUtils';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { Download, ChevronLeft, ChevronRight, ChartColumn } from 'lucide-react';
+import { FileDown, FileSpreadsheet, ChevronLeft, ChevronRight, ChartColumn } from 'lucide-react';
 import { Segmented } from './Controls';
 
 // ₹850 → "₹850", ₹12,000 → "₹12k", ₹1,50,000 → "₹1.5L"
@@ -230,6 +230,26 @@ export default function Reports() {
         </div>
       )}
 
+      {/* Export buttons */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => exportToPDF(filtered, dateRange).catch(() => {})}
+          disabled={filtered.length === 0}
+          className="h-12 rounded-full border border-ink bg-surface flex items-center justify-center gap-2 text-sm font-semibold press-effect hover:bg-sunken transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <FileDown className="w-[18px] h-[18px]" />
+          Download PDF
+        </button>
+        <button
+          onClick={() => exportToExcel(filtered, dateRange)}
+          disabled={filtered.length === 0}
+          className="h-12 rounded-full border border-ink bg-surface flex items-center justify-center gap-2 text-sm font-semibold press-effect hover:bg-sunken transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <FileSpreadsheet className="w-[18px] h-[18px]" />
+          Download Excel
+        </button>
+      </div>
+
       {/* Summary stats */}
       <div className="grid grid-cols-3 gap-2">
         <div className="card rounded-[18px] p-3 flex flex-col gap-1.5 min-w-0">
@@ -386,26 +406,6 @@ export default function Reports() {
           <p className="text-sm text-muted">No transactions found for this period</p>
         </div>
       )}
-
-      {/* Export buttons */}
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          onClick={() => exportToPDF(filtered, dateRange).catch(() => {})}
-          disabled={filtered.length === 0}
-          className="h-[52px] rounded-full border border-ink bg-surface flex items-center justify-center gap-2 text-sm font-semibold press-effect hover:bg-sunken transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <Download className="w-[18px] h-[18px]" />
-          Export PDF
-        </button>
-        <button
-          onClick={() => exportToExcel(filtered, dateRange)}
-          disabled={filtered.length === 0}
-          className="h-[52px] rounded-full border border-ink bg-surface flex items-center justify-center gap-2 text-sm font-semibold press-effect hover:bg-sunken transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <Download className="w-[18px] h-[18px]" />
-          Export Excel
-        </button>
-      </div>
     </div>
   );
 }
