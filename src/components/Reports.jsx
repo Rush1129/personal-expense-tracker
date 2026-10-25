@@ -1,14 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../AppContext';
-import { formatINR, formatDate, getMonthName, calculateTotals, getCategoryInfo, CATEGORIES } from '../utils';
+import { formatINR, formatDate, getMonthName, calculateTotals, getCategoryInfo } from '../utils';
 import { exportToPDF, exportToExcel } from '../exportUtils';
 import {
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, LineChart, Line, Area, AreaChart
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { FileDown, FileSpreadsheet, Calendar, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
-
-const CHART_COLORS = ['#6366f1', '#f97316', '#ec4899', '#8b5cf6', '#3b82f6', '#14b8a6', '#f59e0b', '#10b981', '#22c55e', '#06b6d4', '#a855f7', '#e11d48', '#78716c', '#84cc16', '#7c3aed', '#64748b'];
+import { Download, ChevronLeft, ChevronRight, ChartColumn } from 'lucide-react';
+import { Segmented } from './Controls';
 
 // ₹850 → "₹850", ₹12,000 → "₹12k", ₹1,50,000 → "₹1.5L"
 function formatAxis(v) {
@@ -17,13 +15,16 @@ function formatAxis(v) {
   return `₹${v}`;
 }
 
+const axisTick = { fontSize: 11, fill: 'var(--color-muted)' };
+
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="glass-card rounded-lg px-3 py-2 shadow-lg text-xs">
-      <p className="font-semibold text-text dark:text-text-dark mb-1">{label}</p>
+    <div className="card rounded-xl px-3 py-2 shadow-lg text-xs">
+      {label && <p className="font-semibold mb-1">{label}</p>}
       {payload.map((p, i) => (
-        <p key={i} style={{ color: p.color }} className="font-medium">
+        <p key={i} className="flex items-center gap-1.5 font-medium tabular-nums">
+          <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: p.payload?.color || p.color || p.fill }} />
           {p.name}: {formatINR(p.value)}
         </p>
       ))}
@@ -61,6 +62,9 @@ export default function Reports() {
   }, [transactions, mode, selectedMonth, selectedYear, customStart, customEnd]);
 
   const totals = calculateTotals(filtered);
+  const expenses = filtered.filter((t) => t.type === 'expense');
+  const avgDaily =
+    totals.totalExpense / Math.max(1, new Set(expenses.map((t) => new Date(t.date).toDateString())).size);
 
   const dateRange = useMemo(() => {
     if (mode === 'month') {
@@ -73,7 +77,7 @@ export default function Reports() {
     };
   }, [mode, selectedMonth, selectedYear, customStart, customEnd]);
 
-  // Category breakdown for pie chart
+  // Category breakdown for the donut
   const categoryData = useMemo(() => {
     const map = {};
     filtered
@@ -87,23 +91,42 @@ export default function Reports() {
       .map(([key, value]) => ({
         name: getCategoryInfo(key).label,
         value,
-        icon: getCategoryInfo(key).icon,
         color: getCategoryInfo(key).color,
       }))
       .sort((a, b) => b.value - a.value);
   }, [filtered]);
 
-  // Daily breakdown for bar chart
+  // Daily spending: every day of the month (up to today), or each day with spending in a custom range
   const dailyData = useMemo(() => {
+    if (mode === 'month') {
+      const today = new Date();
+      const isCurrent = selectedYear === today.getFullYear() && selectedMonth === today.getMonth();
+      const lastDay = isCurrent ? today.getDate() : new Date(selectedYear, selectedMonth + 1, 0).getDate();
+      const monthShort = getMonthName(selectedMonth).slice(0, 3);
+      const days = Array.from({ length: lastDay }, (_, i) => ({
+        name: `${i + 1} ${monthShort}`,
+        expense: 0,
+        isToday: isCurrent && i + 1 === today.getDate(),
+      }));
+      filtered.forEach((t) => {
+        if (t.type !== 'expense') return;
+        const day = days[new Date(t.date).getDate() - 1];
+        if (day) day.expense += Number(t.amount);
+      });
+      return days;
+    }
     const map = {};
     filtered.forEach((t) => {
-      const day = new Date(t.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-      if (!map[day]) map[day] = { name: day, income: 0, expense: 0 };
-      if (t.type === 'income') map[day].income += Number(t.amount);
-      else map[day].expense += Number(t.amount);
+      if (t.type !== 'expense') return;
+      const d = new Date(t.date);
+      const key = d.toDateString();
+      if (!map[key]) {
+        map[key] = { name: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), expense: 0, time: d.getTime() };
+      }
+      map[key].expense += Number(t.amount);
     });
-    return Object.values(map).reverse();
-  }, [filtered]);
+    return Object.values(map).sort((a, b) => a.time - b.time);
+  }, [filtered, mode, selectedMonth, selectedYear]);
 
   // Monthly trend (last 6 months)
   const monthlyTrend = useMemo(() => {
@@ -142,266 +165,256 @@ export default function Reports() {
     }
   };
 
+  const biggest = expenses.length
+    ? expenses.reduce((a, b) => (Number(a.amount) > Number(b.amount) ? a : b))
+    : null;
+
+  const dateInput =
+    'w-full h-12 px-3 bg-sunken border border-line rounded-[14px] text-sm font-medium focus:outline-none focus:border-ink dark:[color-scheme:dark]';
+
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-3.5">
       {/* Period selector */}
-      <div className="glass-card rounded-2xl p-4">
-        {/* Mode toggle */}
-        <div className="flex bg-bg dark:bg-bg-dark rounded-xl p-1 gap-1 mb-4">
+      <Segmented
+        value={mode}
+        onChange={setMode}
+        options={[
+          { value: 'month', label: 'Monthly' },
+          { value: 'custom', label: 'Custom range' },
+        ]}
+      />
+
+      {mode === 'month' ? (
+        <div className="card rounded-[20px] p-2.5 flex items-center justify-between">
           <button
-            onClick={() => setMode('month')}
-            className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-              mode === 'month'
-                ? 'bg-primary text-white shadow-md'
-                : 'text-text-muted dark:text-text-muted-dark'
-            }`}
+            onClick={prevMonth}
+            aria-label="Previous month"
+            className="w-11 h-11 rounded-[14px] bg-sunken flex items-center justify-center press-effect hover:bg-line transition-colors"
           >
-            Monthly
+            <ChevronLeft className="w-5 h-5" strokeWidth={2.2} />
           </button>
+          <div className="text-center">
+            <p className="text-[17px] font-semibold">{getMonthName(selectedMonth)}</p>
+            <p className="text-xs text-muted">{selectedYear}</p>
+          </div>
           <button
-            onClick={() => setMode('custom')}
-            className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-              mode === 'custom'
-                ? 'bg-primary text-white shadow-md'
-                : 'text-text-muted dark:text-text-muted-dark'
-            }`}
+            onClick={nextMonth}
+            aria-label="Next month"
+            className="w-11 h-11 rounded-[14px] bg-sunken flex items-center justify-center press-effect hover:bg-line transition-colors"
           >
-            Custom Range
+            <ChevronRight className="w-5 h-5" strokeWidth={2.2} />
           </button>
         </div>
-
-        {mode === 'month' ? (
-          <div className="flex items-center justify-between">
-            <button
-              onClick={prevMonth}
-              className="w-9 h-9 rounded-full bg-bg dark:bg-bg-dark flex items-center justify-center press-effect hover:bg-border dark:hover:bg-border-dark transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5 text-text-muted dark:text-text-muted-dark" />
-            </button>
-            <div className="text-center">
-              <p className="text-lg font-bold text-text dark:text-text-dark">
-                {getMonthName(selectedMonth)}
-              </p>
-              <p className="text-xs text-text-muted dark:text-text-muted-dark">{selectedYear}</p>
-            </div>
-            <button
-              onClick={nextMonth}
-              className="w-9 h-9 rounded-full bg-bg dark:bg-bg-dark flex items-center justify-center press-effect hover:bg-border dark:hover:bg-border-dark transition-colors"
-            >
-              <ChevronRight className="w-5 h-5 text-text-muted dark:text-text-muted-dark" />
-            </button>
+      ) : (
+        <div className="card rounded-[20px] p-3 grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="range-from" className="block text-[13px] font-medium text-muted mb-1.5">From</label>
+            <input
+              id="range-from"
+              type="date"
+              value={customStart}
+              onChange={(e) => setCustomStart(e.target.value)}
+              className={dateInput}
+            />
           </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-text-muted dark:text-text-muted-dark mb-1.5">From</label>
-              <input
-                type="date"
-                value={customStart}
-                onChange={(e) => setCustomStart(e.target.value)}
-                className="w-full px-3 py-2.5 bg-bg dark:bg-bg-dark border border-border dark:border-border-dark rounded-xl text-sm font-medium text-text dark:text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-text-muted dark:text-text-muted-dark mb-1.5">To</label>
-              <input
-                type="date"
-                value={customEnd}
-                onChange={(e) => setCustomEnd(e.target.value)}
-                className="w-full px-3 py-2.5 bg-bg dark:bg-bg-dark border border-border dark:border-border-dark rounded-xl text-sm font-medium text-text dark:text-text-dark focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
+          <div>
+            <label htmlFor="range-to" className="block text-[13px] font-medium text-muted mb-1.5">To</label>
+            <input
+              id="range-to"
+              type="date"
+              value={customEnd}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              className={dateInput}
+            />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="glass-card rounded-xl p-3 text-center">
-          <p className="text-[10px] font-semibold text-text-muted dark:text-text-muted-dark uppercase tracking-wider mb-1">Income</p>
-          <p className="text-sm font-bold text-income truncate">{formatINR(totals.totalIncome)}</p>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="card rounded-[18px] p-3 flex flex-col gap-1.5 min-w-0">
+          <p className="text-xs font-medium text-muted">Income</p>
+          <p className="text-[17px] font-semibold tracking-tight text-income truncate tabular-nums">{formatINR(totals.totalIncome)}</p>
         </div>
-        <div className="glass-card rounded-xl p-3 text-center">
-          <p className="text-[10px] font-semibold text-text-muted dark:text-text-muted-dark uppercase tracking-wider mb-1">Expenses</p>
-          <p className="text-sm font-bold text-expense truncate">{formatINR(totals.totalExpense)}</p>
+        <div className="card rounded-[18px] p-3 flex flex-col gap-1.5 min-w-0">
+          <p className="text-xs font-medium text-muted">Spent</p>
+          <p className="text-[17px] font-semibold tracking-tight truncate tabular-nums">{formatINR(totals.totalExpense)}</p>
         </div>
-        <div className="glass-card rounded-xl p-3 text-center">
-          <p className="text-[10px] font-semibold text-text-muted dark:text-text-muted-dark uppercase tracking-wider mb-1">Balance</p>
-          <p className={`text-sm font-bold truncate ${totals.netBalance >= 0 ? 'text-income' : 'text-expense'}`}>
+        <div className="rounded-[18px] p-3 flex flex-col gap-1.5 min-w-0 bg-hero text-hero-ink">
+          <p className="text-xs font-medium text-hero-muted">{totals.netBalance >= 0 ? 'Saved' : 'Overspent'}</p>
+          <p className="text-[17px] font-semibold tracking-tight text-hero-fill truncate tabular-nums">
             {formatINR(Math.abs(totals.netBalance))}
           </p>
         </div>
       </div>
 
-      {/* Export buttons */}
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={() => exportToPDF(filtered, dateRange).catch(() => {})}
-          disabled={filtered.length === 0}
-          className="glass-card rounded-xl py-3.5 flex items-center justify-center gap-2 text-sm font-semibold text-expense press-effect hover:bg-expense/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <FileDown className="w-4 h-4" />
-          Export PDF
-        </button>
-        <button
-          onClick={() => exportToExcel(filtered, dateRange)}
-          disabled={filtered.length === 0}
-          className="glass-card rounded-xl py-3.5 flex items-center justify-center gap-2 text-sm font-semibold text-income press-effect hover:bg-income/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <FileSpreadsheet className="w-4 h-4" />
-          Export Excel
-        </button>
-      </div>
-
       {filtered.length > 0 && (
         <>
-          {/* Category pie chart */}
+          {/* Category donut */}
           {categoryData.length > 0 && (
-            <div className="glass-card rounded-2xl p-4">
-              <h3 className="text-sm font-bold text-text dark:text-text-dark mb-4">Spending by Category</h3>
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={85}
-                    paddingAngle={3}
-                    dataKey="value"
-                    strokeWidth={0}
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
+            <section className="card rounded-3xl p-[18px]">
+              <h2 className="text-base font-semibold mb-2">Spending by category</h2>
+              <div className="relative h-[210px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={64}
+                      outerRadius={90}
+                      paddingAngle={2}
+                      cornerRadius={4}
+                      dataKey="value"
+                      strokeWidth={0}
+                    >
+                      {categoryData.map((entry, index) => (
+                        <Cell key={index} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-xs font-medium text-muted">Total spent</span>
+                  <span className="text-2xl font-semibold tracking-[-0.03em] tabular-nums">{formatINR(totals.totalExpense)}</span>
+                </div>
+              </div>
               {/* Breakdown */}
-              <div className="space-y-3 mt-4">
+              <div className="mt-2">
                 {categoryData.map((cat, i) => {
                   const pct = totals.totalExpense > 0 ? (cat.value / totals.totalExpense) * 100 : 0;
                   return (
-                    <div key={i}>
-                      <div className="flex items-center justify-between text-xs mb-1.5">
-                        <span className="flex items-center gap-2 font-semibold text-text dark:text-text-dark">
-                          <span className="text-base leading-none">{cat.icon}</span>
-                          {cat.name}
-                        </span>
-                        <span className="text-text-muted dark:text-text-muted-dark">
-                          <span className="font-bold text-text dark:text-text-dark">{formatINR(cat.value)}</span>
-                          {' · '}{Math.round(pct)}%
-                        </span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-bg dark:bg-bg-dark overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: cat.color }} />
-                      </div>
+                    <div
+                      key={i}
+                      className={`flex items-center gap-2.5 h-10 text-sm ${i > 0 ? 'border-t border-divider' : ''}`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                      <span className="flex-1 min-w-0 truncate font-medium">{cat.name}</span>
+                      <span className="font-semibold tabular-nums">{formatINR(cat.value)}</span>
+                      <span className="w-10 text-right text-muted tabular-nums">{Math.round(pct)}%</span>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </section>
           )}
 
-          {/* Daily income vs expense bar chart */}
-          {dailyData.length > 0 && (
-            <div className="glass-card rounded-2xl p-4">
-              <h3 className="text-sm font-bold text-text dark:text-text-dark mb-4">Daily Breakdown</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={dailyData} barGap={2}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={formatAxis} axisLine={false} tickLine={false} width={40} />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--chart-grid)', opacity: 0.5 }} />
-                  <Bar dataKey="income" name="Income" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="expense" name="Expense" fill="#ef4444" radius={[4, 4, 0, 0]} />
+          {/* Daily spending */}
+          {dailyData.some((d) => d.expense > 0) && (
+            <section className="card rounded-3xl p-[18px]">
+              <div className="flex items-baseline justify-between mb-4">
+                <h2 className="text-base font-semibold">Daily spending</h2>
+                <span className="text-xs font-medium text-muted tabular-nums">Avg {formatINR(Math.round(avgDaily))} a day</span>
+              </div>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={dailyData} margin={{ top: 4, right: 0, left: -8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={axisTick}
+                    tickFormatter={(v) => (mode === 'month' ? v.split(' ')[0] : v)}
+                    axisLine={false}
+                    tickLine={false}
+                    minTickGap={10}
+                  />
+                  <YAxis tick={axisTick} tickFormatter={formatAxis} axisLine={false} tickLine={false} width={44} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-sunken)' }} />
+                  <Bar dataKey="expense" name="Spent" fill="var(--color-bar)" radius={[3, 3, 0, 0]} maxBarSize={14}>
+                    {dailyData.map((d, i) => (
+                      <Cell key={i} fill={d.isToday ? 'var(--color-ink)' : 'var(--color-bar)'} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+            </section>
           )}
         </>
       )}
 
       {/* Monthly trend (always visible) */}
-      <div className="glass-card rounded-2xl p-4">
-        <h3 className="text-sm font-bold text-text dark:text-text-dark mb-4">6-Month Trend</h3>
-        <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={monthlyTrend}>
-            <defs>
-              <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
-            <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={formatAxis} axisLine={false} tickLine={false} width={40} />
-            <Tooltip content={<CustomTooltip />} />
-            <Area type="monotone" dataKey="income" name="Income" stroke="#22c55e" fill="url(#colorIncome)" strokeWidth={2} />
-            <Area type="monotone" dataKey="expense" name="Expense" stroke="#ef4444" fill="url(#colorExpense)" strokeWidth={2} />
-          </AreaChart>
+      <section className="card rounded-3xl p-[18px]">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold">6-month trend</h2>
+          <div className="flex gap-3 text-xs font-medium text-muted">
+            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-income" />Income</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-ink" />Spent</span>
+          </div>
+        </div>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={monthlyTrend} barGap={4} margin={{ top: 4, right: 0, left: -8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
+            <XAxis dataKey="name" tick={axisTick} axisLine={false} tickLine={false} />
+            <YAxis tick={axisTick} tickFormatter={formatAxis} axisLine={false} tickLine={false} width={44} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-sunken)' }} />
+            <Bar dataKey="income" name="Income" fill="var(--color-income)" radius={[4, 4, 0, 0]} maxBarSize={16} />
+            <Bar dataKey="expense" name="Spent" fill="var(--color-ink)" radius={[4, 4, 0, 0]} maxBarSize={16} />
+          </BarChart>
         </ResponsiveContainer>
-      </div>
+      </section>
 
       {/* Stats */}
       {filtered.length > 0 && (
-        <div className="glass-card rounded-2xl p-4">
-          <h3 className="text-sm font-bold text-text dark:text-text-dark mb-3">Quick Stats</h3>
-          <div className="space-y-3">
-            <StatRow
-              label="Transactions"
-              value={`${filtered.length}`}
+        <div className="grid grid-cols-2 gap-2">
+          <StatTile label="Transactions" value={`${filtered.length}`} />
+          <StatTile label="Avg. daily spend" value={formatINR(avgDaily)} />
+          {categoryData.length > 0 && (
+            <StatTile
+              label="Top category"
+              value={
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: categoryData[0].color }} />
+                  <span className="truncate">{categoryData[0].name}</span>
+                </span>
+              }
             />
-            <StatRow
-              label="Avg. Daily Spend"
-              value={formatINR(
-                totals.totalExpense /
-                  Math.max(1, new Set(filtered.filter(t => t.type === 'expense').map((t) => new Date(t.date).toDateString())).size)
-              )}
+          )}
+          {biggest && (
+            <StatTile
+              label="Biggest expense"
+              value={`${formatINR(biggest.amount)} · ${biggest.description || getCategoryInfo(biggest.category).label}`}
             />
-            {categoryData.length > 0 && (
-              <StatRow
-                label="Top Category"
-                value={`${categoryData[0].icon} ${categoryData[0].name}`}
-              />
-            )}
-            {(() => {
-              const expenses = filtered.filter(t => t.type === 'expense');
-              if (expenses.length === 0) return null;
-              const max = expenses.reduce((a, b) => Number(a.amount) > Number(b.amount) ? a : b);
-              return (
-                <StatRow
-                  label="Biggest Expense"
-                  value={`${formatINR(max.amount)} — ${max.description || getCategoryInfo(max.category).label}`}
-                />
-              );
-            })()}
-          </div>
+          )}
         </div>
       )}
 
       {filtered.length === 0 && (
-        <div className="text-center py-10 fade-in">
-          <div className="text-4xl mb-3">📊</div>
-          <p className="text-sm text-text-muted dark:text-text-muted-dark">
-            No transactions found for this period
-          </p>
+        <div className="card rounded-3xl text-center px-6 py-10 fade-in">
+          <div className="w-14 h-14 rounded-full bg-sunken flex items-center justify-center mx-auto mb-3">
+            <ChartColumn className="w-6 h-6 text-muted" />
+          </div>
+          <p className="text-sm text-muted">No transactions found for this period</p>
         </div>
       )}
+
+      {/* Export buttons */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => exportToPDF(filtered, dateRange).catch(() => {})}
+          disabled={filtered.length === 0}
+          className="h-[52px] rounded-full border border-ink bg-surface flex items-center justify-center gap-2 text-sm font-semibold press-effect hover:bg-sunken transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Download className="w-[18px] h-[18px]" />
+          Export PDF
+        </button>
+        <button
+          onClick={() => exportToExcel(filtered, dateRange)}
+          disabled={filtered.length === 0}
+          className="h-[52px] rounded-full border border-ink bg-surface flex items-center justify-center gap-2 text-sm font-semibold press-effect hover:bg-sunken transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Download className="w-[18px] h-[18px]" />
+          Export Excel
+        </button>
+      </div>
     </div>
   );
 }
 
-function StatRow({ label, value }) {
+function StatTile({ label, value }) {
   return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-text-muted dark:text-text-muted-dark font-medium">{label}</span>
-      <span className="text-xs font-bold text-text dark:text-text-dark">{value}</span>
+    <div className="card rounded-[18px] p-3.5 flex flex-col gap-1.5 min-w-0">
+      <span className="text-xs font-medium text-muted">{label}</span>
+      <span className="text-base font-semibold truncate tabular-nums">{value}</span>
     </div>
   );
 }

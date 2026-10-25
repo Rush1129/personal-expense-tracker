@@ -114,22 +114,22 @@ export function calculateTotals(transactions) {
 // Category definitions with icons, colors, and type ('expense' | 'income' | 'both')
 export const CATEGORIES = {
   // Expenses
-  food: { label: 'Food', icon: '🍽️', color: '#f97316', type: 'expense' },
+  food: { label: 'Food', icon: '🍽️', color: '#f07a2a', type: 'expense' },
   transport: { label: 'Transport', icon: '🚗', color: '#3b82f6', type: 'expense' },
-  groceries: { label: 'Groceries', icon: '🛒', color: '#84cc16', type: 'expense' },
-  bills: { label: 'Bills and Rent', icon: '📄', color: '#8b5cf6', type: 'expense' },
-  shopping: { label: 'Shopping', icon: '🛍️', color: '#ec4899', type: 'expense' },
-  entertainment: { label: 'Entertainment', icon: '🎬', color: '#f59e0b', type: 'expense' },
-  
+  groceries: { label: 'Groceries', icon: '🛒', color: '#6fae2e', type: 'expense' },
+  bills: { label: 'Bills and Rent', icon: '📄', color: '#7c5ce0', type: 'expense' },
+  shopping: { label: 'Shopping', icon: '🛍️', color: '#e0478a', type: 'expense' },
+  entertainment: { label: 'Entertainment', icon: '🎬', color: '#e5a50a', type: 'expense' },
+
   // Income
-  pocketmoney: { label: 'Pocket Money', icon: '💰', color: '#f1af20ff', type: 'income'},
+  pocketmoney: { label: 'Pocket Money', icon: '💰', color: '#d4a017', type: 'income'},
   investment: { label: 'Investment', icon: '📈', color: '#a855f7', type: 'income' },
-  freelance: { label: 'Freelance', icon: '💻', color: '#06b6d4', type: 'income' },
-  salary: { label: 'Salary', icon: '💰', color: '#22c55e', type: 'income' },
+  freelance: { label: 'Freelance', icon: '💻', color: '#0ea5c4', type: 'income' },
+  salary: { label: 'Salary', icon: '💰', color: '#22a35a', type: 'income' },
   gift: { label: 'Gift', icon: '🎁', color: '#e11d48', type: 'income' },
 
   // Common / General
-  other: { label: 'Other', icon: '📌', color: '#64748b', type: 'both' },
+  other: { label: 'Other', icon: '📌', color: '#8e9287', type: 'both' },
 };
 
 // Safe category lookup with robust fallback to prevent crashes

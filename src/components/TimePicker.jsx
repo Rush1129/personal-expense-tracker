@@ -42,16 +42,16 @@ function ScrollWheel({ items, selectedIndex, onSelect, label }) {
 
   return (
     <div className="flex flex-col items-center">
-      <p className="text-[10px] font-bold text-text-muted dark:text-text-muted-dark uppercase tracking-wider mb-1.5">
+      <p className="text-[11px] font-semibold text-muted mb-1.5">
         {label}
       </p>
       <div
-        className="relative overflow-hidden rounded-xl bg-bg dark:bg-bg-dark"
+        className="relative overflow-hidden rounded-2xl bg-sunken"
         style={{ height: VISIBLE_ITEMS * ITEM_HEIGHT }}
       >
         {/* Selection highlight */}
         <div
-          className="absolute left-0 right-0 bg-primary/10 dark:bg-primary/15 rounded-lg z-0 pointer-events-none"
+          className="absolute left-1 right-1 bg-raised rounded-xl z-0 pointer-events-none"
           style={{
             top: HALF * ITEM_HEIGHT,
             height: ITEM_HEIGHT,
@@ -76,8 +76,8 @@ function ScrollWheel({ items, selectedIndex, onSelect, label }) {
                 key={i}
                 className={`flex items-center justify-center cursor-pointer transition-all duration-150 ${
                   isSelected
-                    ? 'text-primary font-bold text-lg'
-                    : 'text-text-muted/50 dark:text-text-muted-dark/50 text-sm'
+                    ? 'text-ink font-semibold text-lg tabular-nums'
+                    : 'text-muted/60 text-sm tabular-nums'
                 }`}
                 style={{
                   height: ITEM_HEIGHT,
@@ -101,8 +101,8 @@ function ScrollWheel({ items, selectedIndex, onSelect, label }) {
         </div>
 
         {/* Fade edges */}
-        <div className="absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-bg dark:from-bg-dark to-transparent pointer-events-none z-20" />
-        <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-bg dark:from-bg-dark to-transparent pointer-events-none z-20" />
+        <div className="absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-sunken to-transparent pointer-events-none z-20" />
+        <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-sunken to-transparent pointer-events-none z-20" />
       </div>
     </div>
   );
@@ -151,13 +151,13 @@ export default function TimePicker({ value, onChange, enabled, onToggle }) {
       <button
         type="button"
         onClick={onToggle}
-        className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all press-effect ${
+        className={`flex items-center gap-1.5 mb-3 h-10 px-3.5 rounded-full text-sm font-semibold transition-all press-effect border ${
           enabled
-            ? 'bg-primary text-white shadow-md shadow-primary/20'
-            : 'bg-bg dark:bg-bg-dark text-text-muted dark:text-text-muted-dark border border-border dark:border-border-dark'
+            ? 'bg-ink text-ink-inverse border-ink'
+            : 'bg-surface text-muted border-dashed border-muted/60 hover:text-ink'
         }`}
       >
-        <Clock className="w-3.5 h-3.5" />
+        <Clock className="w-4 h-4" />
         {enabled ? 'Time set' : 'Add time (optional)'}
       </button>
 
@@ -169,7 +169,7 @@ export default function TimePicker({ value, onChange, enabled, onToggle }) {
             onSelect={handleHourChange}
             label="Hour"
           />
-          <span className="text-2xl font-bold text-text-muted dark:text-text-muted-dark mt-5">:</span>
+          <span className="text-2xl font-semibold text-muted mt-5">:</span>
           <ScrollWheel
             items={minuteItems}
             selectedIndex={minutes}

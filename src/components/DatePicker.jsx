@@ -104,19 +104,19 @@ export default function DatePicker({ value, onChange }) {
         <button
           type="button"
           onClick={prevMonth}
-          className="w-8 h-8 rounded-full bg-bg dark:bg-bg-dark flex items-center justify-center press-effect hover:bg-border dark:hover:bg-border-dark transition-colors"
+          className="w-10 h-10 rounded-full bg-surface flex items-center justify-center press-effect hover:bg-line transition-colors"
         >
-          <ChevronLeft className="w-4 h-4 text-text-muted dark:text-text-muted-dark" />
+          <ChevronLeft className="w-4 h-4" strokeWidth={2.2} />
         </button>
-        <p className="text-sm font-bold text-text dark:text-text-dark">
+        <p className="text-sm font-semibold">
           {MONTHS[viewMonth]} {viewYear}
         </p>
         <button
           type="button"
           onClick={nextMonth}
-          className="w-8 h-8 rounded-full bg-bg dark:bg-bg-dark flex items-center justify-center press-effect hover:bg-border dark:hover:bg-border-dark transition-colors"
+          className="w-10 h-10 rounded-full bg-surface flex items-center justify-center press-effect hover:bg-line transition-colors"
         >
-          <ChevronRight className="w-4 h-4 text-text-muted dark:text-text-muted-dark" />
+          <ChevronRight className="w-4 h-4" strokeWidth={2.2} />
         </button>
       </div>
 
@@ -125,7 +125,7 @@ export default function DatePicker({ value, onChange }) {
         {DAYS.map((day) => (
           <div
             key={day}
-            className="text-center text-[10px] font-bold text-text-muted dark:text-text-muted-dark uppercase py-1"
+            className="text-center text-[11px] font-semibold text-muted py-1"
           >
             {day}
           </div>
@@ -144,11 +144,11 @@ export default function DatePicker({ value, onChange }) {
               type="button"
               onClick={() => handleSelect(item.date)}
               className={`
-                relative w-full aspect-square flex items-center justify-center text-xs font-medium rounded-full transition-all duration-150
-                ${!item.isCurrentMonth ? 'text-text-muted/30 dark:text-text-muted-dark/30' : ''}
-                ${item.isCurrentMonth && !sel ? 'text-text dark:text-text-dark hover:bg-primary/10' : ''}
-                ${sel ? 'bg-primary text-white font-bold shadow-md shadow-primary/20' : ''}
-                ${tod && !sel ? 'ring-1 ring-primary/40' : ''}
+                relative w-full aspect-square flex items-center justify-center text-[13px] font-medium rounded-full transition-all duration-150 tabular-nums
+                ${!item.isCurrentMonth ? 'text-muted/40' : ''}
+                ${item.isCurrentMonth && !sel ? 'hover:bg-surface' : ''}
+                ${sel ? 'bg-ink text-ink-inverse font-semibold' : ''}
+                ${tod && !sel ? 'ring-1 ring-ink/50' : ''}
                 press-effect
               `}
             >
@@ -168,7 +168,7 @@ export default function DatePicker({ value, onChange }) {
             setViewYear(now.getFullYear());
             handleSelect(now);
           }}
-          className="flex-1 py-2 rounded-lg text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary/15 transition-colors press-effect"
+          className="flex-1 h-10 rounded-full text-[13px] font-semibold bg-accent text-on-accent press-effect"
         >
           Today
         </button>
@@ -181,7 +181,7 @@ export default function DatePicker({ value, onChange }) {
             setViewYear(yesterday.getFullYear());
             handleSelect(yesterday);
           }}
-          className="flex-1 py-2 rounded-lg text-[11px] font-semibold text-text-muted dark:text-text-muted-dark bg-bg dark:bg-bg-dark hover:bg-border dark:hover:bg-border-dark transition-colors press-effect"
+          className="flex-1 h-10 rounded-full text-[13px] font-semibold bg-surface border border-line hover:border-muted transition-colors press-effect"
         >
           Yesterday
         </button>

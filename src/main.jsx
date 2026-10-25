@@ -12,17 +12,20 @@ createRoot(document.getElementById('root')).render(
       <Toaster
         position="bottom-center"
         containerStyle={{
-          bottom: '160px',
+          bottom: '112px',
         }}
         toastOptions={{
-          className: 'toast-custom',
           style: {
-            fontFamily: 'Inter, sans-serif',
-            background: 'var(--surface)',
-            color: 'var(--text)',
-            border: '1px solid var(--border)',
-            borderRadius: '12px',
+            fontFamily: 'var(--font-sans)',
+            fontWeight: 500,
+            background: 'var(--color-surface)',
+            color: 'var(--color-ink)',
+            border: '1px solid var(--color-line)',
+            borderRadius: '16px',
+            padding: '10px 14px',
           },
+          success: { iconTheme: { primary: 'var(--color-income)', secondary: 'var(--color-surface)' } },
+          error: { iconTheme: { primary: 'var(--color-danger)', secondary: 'var(--color-surface)' } },
         }}
       />
     </AppProvider>

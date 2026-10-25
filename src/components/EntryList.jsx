@@ -3,6 +3,7 @@ import { useApp } from '../AppContext';
 import { formatINR, formatTime, getCategoryInfo, groupByDate } from '../utils';
 import { Pencil, Trash2, Mic } from 'lucide-react';
 import toast from 'react-hot-toast';
+import CategoryIcon from './CategoryIcon';
 
 export default function EntryList({ transactions, onEdit }) {
   const { deleteTransaction, restoreTransaction } = useApp();
@@ -22,44 +23,34 @@ export default function EntryList({ transactions, onEdit }) {
               restoreTransaction(deleted);
               toast.dismiss(t.id);
             }}
-            className="px-3 py-1 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary-dark transition-colors"
+            className="px-3 py-1.5 bg-ink text-ink-inverse text-xs font-semibold rounded-full"
           >
             Undo
           </button>
         </div>
       ),
-      {
-        duration: 5000,
-        style: {
-          background: 'var(--surface)',
-          color: 'var(--text)',
-          border: '1px solid var(--border)',
-          borderRadius: '12px',
-          padding: '12px 16px',
-          fontFamily: 'Inter, sans-serif',
-        },
-      }
+      { duration: 5000 }
     );
   };
 
   if (transactions.length === 0) {
     return (
-      <div className="glass-card rounded-2xl text-center px-6 py-12 fade-in">
-        <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-          <Mic className="w-6 h-6 text-primary" />
+      <div className="card rounded-3xl text-center px-6 py-12 fade-in">
+        <div className="w-14 h-14 rounded-full bg-accent text-on-accent flex items-center justify-center mx-auto mb-4">
+          <Mic className="w-6 h-6" />
         </div>
-        <p className="text-base font-semibold text-text dark:text-text-dark mb-1">No entries this month</p>
-        <p className="text-sm text-text-muted dark:text-text-muted-dark leading-relaxed">
-          Tap <span className="font-semibold text-primary">Speak</span> and say something like
+        <p className="text-base font-semibold mb-1">No entries this month</p>
+        <p className="text-sm text-muted leading-relaxed">
+          Tap the <span className="font-semibold text-ink">mic</span> and say something like
           <br />
-          “Spent 120 on chai today”, or use + to add manually.
+          “Spent 120 on chai today”, or tap Add.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {groups.map((group, gi) => {
         let spent = 0;
         let earned = 0;
@@ -71,79 +62,72 @@ export default function EntryList({ transactions, onEdit }) {
         return (
           <div key={group.dateKey} className="slide-up" style={{ animationDelay: `${gi * 50}ms` }}>
             {/* Date header */}
-            <div className="flex items-center justify-between mb-2 px-1">
-              <span className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase tracking-wider">
-                {group.label}
-              </span>
-              <span className="flex items-center gap-2 text-xs font-semibold">
+            <div className="flex items-center justify-between mb-2.5 px-1 text-xs font-semibold text-muted">
+              <span className="uppercase tracking-[0.06em]">{group.label}</span>
+              <span className="flex items-center gap-2 tabular-nums">
                 {earned > 0 && <span className="text-income">+{formatINR(earned)}</span>}
-                {spent > 0 && <span className="text-text-muted dark:text-text-muted-dark">-{formatINR(spent)}</span>}
+                {spent > 0 && <span>−{formatINR(spent)}</span>}
               </span>
             </div>
 
             {/* Entries */}
-            <div className="glass-card rounded-2xl overflow-hidden divide-y divide-border/70 dark:divide-border-dark/70">
-              {group.transactions.map((tx) => {
+            <div className="card rounded-[22px] overflow-hidden">
+              {group.transactions.map((tx, i) => {
                 const catInfo = getCategoryInfo(tx.category);
                 const isExpense = tx.type === 'expense';
                 const isOpen = openId === tx.id;
 
                 return (
                   <div key={tx.id}>
+                    {i > 0 && <div className="h-px bg-divider ml-[70px]" />}
                     <button
                       type="button"
                       onClick={() => setOpenId(isOpen ? null : tx.id)}
                       aria-expanded={isOpen}
-                      className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors ${
-                        isOpen ? 'bg-bg/70 dark:bg-bg-dark/50' : 'hover:bg-bg/60 dark:hover:bg-bg-dark/40'
+                      className={`w-full flex items-center gap-3 px-3.5 py-3 text-left transition-colors ${
+                        isOpen ? 'bg-sunken' : 'hover:bg-sunken/60'
                       }`}
                     >
-                      {/* Category icon */}
-                      <div
-                        className="w-11 h-11 rounded-2xl flex items-center justify-center text-lg shrink-0"
-                        style={{ backgroundColor: `${catInfo.color}1f` }}
-                      >
-                        {catInfo.icon}
-                      </div>
+                      <CategoryIcon category={tx.category} />
 
                       {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-text dark:text-text-dark truncate">
+                      <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <span className="text-[15px] font-medium truncate">
                           {tx.description || catInfo.label}
-                        </p>
-                        <p className="text-xs text-text-muted dark:text-text-muted-dark mt-0.5 truncate">
+                        </span>
+                        <span className="text-[13px] text-muted truncate">
                           {catInfo.label} · {formatTime(tx.date)}
-                        </p>
-                      </div>
+                        </span>
+                      </span>
 
                       {/* Amount */}
-                      <p
-                        className={`text-[15px] font-bold shrink-0 tabular-nums ${
-                          isExpense ? 'text-text dark:text-text-dark' : 'text-income'
+                      <span
+                        className={`text-[15px] font-semibold shrink-0 tabular-nums ${
+                          isExpense ? '' : 'text-income'
                         }`}
                       >
-                        {isExpense ? '-' : '+'}{formatINR(tx.amount)}
-                      </p>
+                        {isExpense ? '−' : '+'}{formatINR(tx.amount)}
+                      </span>
                     </button>
 
                     {/* Actions */}
                     {isOpen && (
-                      <div className="flex gap-2 px-4 pb-3 pt-1 bg-bg/70 dark:bg-bg-dark/50 scale-in">
+                      <div className="flex gap-2 px-3.5 pb-3 pt-1 bg-sunken scale-in">
                         <button
                           onClick={() => {
                             setOpenId(null);
                             onEdit(tx);
                           }}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary/10 text-primary text-xs font-semibold press-effect hover:bg-primary/15 transition-colors"
+                          className="flex-1 h-11 flex items-center justify-center gap-1.5 rounded-xl bg-surface border border-line text-sm font-semibold press-effect"
                         >
-                          <Pencil className="w-3.5 h-3.5" />
+                          <Pencil className="w-4 h-4" />
                           Edit
                         </button>
                         <button
                           onClick={() => handleDelete(tx)}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-expense/10 text-expense text-xs font-semibold press-effect hover:bg-expense/15 transition-colors"
+                          className="flex-1 h-11 flex items-center justify-center gap-1.5 rounded-xl bg-danger/10 text-danger text-sm font-semibold press-effect"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-4 h-4" />
                           Delete
                         </button>
                       </div>
