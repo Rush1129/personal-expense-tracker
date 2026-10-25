@@ -2,13 +2,15 @@ import { useState, useRef } from 'react';
 import { useApp } from '../AppContext';
 import { exportAllData, importAllData, syncLocalToSupabase } from '../db';
 import { isSupabaseConfigured, checkSupabaseHealth } from '../supabaseClient';
+import { browserSpeechSupported } from '../voice/useVoiceInput';
 import {
-  Moon, Sun, Download, Upload, Shield, ChevronRight, Database, Smartphone, Cloud, RefreshCw, CheckCircle2
+  Moon, Sun, Download, Upload, Shield, ChevronRight, Database, Smartphone, Cloud, RefreshCw, CheckCircle2,
+  Mic, Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Settings() {
-  const { darkMode, toggleDarkMode, refreshTransactions, transactions } = useApp();
+  const { darkMode, toggleDarkMode, refreshTransactions, transactions, voiceSettings, updateVoiceSettings } = useApp();
   const fileInputRef = useRef(null);
   const [importing, setImporting] = useState(false);
   const [testingSupabase, setTestingSupabase] = useState(false);
@@ -81,7 +83,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="space-y-5 pb-28">
+    <div className="space-y-5">
       {/* App info */}
       <div className="glass-card rounded-2xl p-5 text-center">
         <div className="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-primary/20">
@@ -110,6 +112,67 @@ export default function Settings() {
           </div>
           <div className={`w-12 h-7 rounded-full p-1 transition-colors duration-200 ${darkMode ? 'bg-primary' : 'bg-border dark:bg-border-dark'}`}>
             <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${darkMode ? 'translate-x-5' : 'translate-x-0'}`} />
+          </div>
+        </button>
+      </div>
+
+      {/* Voice input */}
+      <div className="glass-card rounded-2xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-border dark:border-border-dark">
+          <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase tracking-wider">Voice Input</p>
+        </div>
+
+        <div className="px-5 py-4 border-b border-border/50 dark:border-border-dark/50">
+          <div className="flex items-center gap-4 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Mic className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-text dark:text-text-dark">Speech recognition</p>
+              <p className="text-xs text-text-muted dark:text-text-muted-dark">
+                {voiceSettings.engine === 'on-device'
+                  ? 'Private: audio stays on this device. One-time ~41 MB model download.'
+                  : browserSpeechSupported
+                    ? "Fast, using your browser's speech service. Falls back to on-device if it fails."
+                    : 'Your browser has no built-in speech service, so the on-device model is used.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex bg-bg dark:bg-bg-dark rounded-xl p-1 gap-1">
+            {[
+              ['auto', 'Auto'],
+              ['on-device', 'On-device only'],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => updateVoiceSettings({ engine: key })}
+                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                  voiceSettings.engine === key
+                    ? 'bg-primary text-white shadow-md'
+                    : 'text-text-muted dark:text-text-muted-dark'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          onClick={() => updateVoiceSettings({ smartCategories: !voiceSettings.smartCategories })}
+          className="w-full flex items-center gap-4 px-5 py-4 press-effect hover:bg-bg/50 dark:hover:bg-bg-dark/50 transition-colors"
+        >
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="text-sm font-semibold text-text dark:text-text-dark">AI category detection</p>
+            <p className="text-xs text-text-muted dark:text-text-muted-dark">
+              On-device model picks a category when keywords don't match (~23 MB, one-time)
+            </p>
+          </div>
+          <div className={`w-12 h-7 shrink-0 rounded-full p-1 transition-colors duration-200 ${voiceSettings.smartCategories ? 'bg-primary' : 'bg-border dark:bg-border-dark'}`}>
+            <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${voiceSettings.smartCategories ? 'translate-x-5' : 'translate-x-0'}`} />
           </div>
         </button>
       </div>
@@ -266,7 +329,10 @@ export default function Settings() {
           <div className="flex-1">
             <p className="text-sm font-semibold text-text dark:text-text-dark">Privacy</p>
             <p className="text-xs text-text-muted dark:text-text-muted-dark">
-              All data is stored locally on your device. Nothing is sent to any server.
+              {isSupabaseConfigured
+                ? 'Entries are stored on this device and in your own Supabase project.'
+                : 'All data is stored locally on your device. Nothing is sent to any server.'}
+              {' '}Voice in on-device mode never leaves your phone.
             </p>
           </div>
         </div>

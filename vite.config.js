@@ -5,6 +5,10 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   envPrefix: ['VITE_', 'SUPABASE_'],
+  // The on-device AI worker uses dynamic import(), which needs ES-module workers
+  worker: {
+    format: 'es',
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -53,6 +57,22 @@ export default defineConfig({
               expiration: {
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365,
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            // transformers.js + ONNX runtime for on-device voice/category models
+            // (the model weights themselves are cached by transformers.js)
+            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/npm\/@huggingface\/transformers@.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'ai-runtime-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 90,
               },
               cacheableResponse: {
                 statuses: [0, 200],
