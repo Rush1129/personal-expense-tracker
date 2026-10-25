@@ -2,47 +2,91 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-@theme {
-  --color-primary: #6366f1;
-  --color-primary-light: #818cf8;
-  --color-primary-dark: #4f46e5;
-  --color-accent: #8b5cf6;
-  --color-income: #16a34a;
-  --color-income-light: #22c55e;
-  --color-income-bg: #dcfce7;
-  --color-income-bg-dark: #052e16;
-  --color-expense: #dc2626;
-  --color-expense-light: #ef4444;
-  --color-expense-bg: #fee2e2;
-  --color-expense-bg-dark: #450a0a;
-  --color-surface: #ffffff;
-  --color-surface-dark: #141b2d;
-  --color-bg: #f3f4f9;
-  --color-bg-dark: #0a0f1c;
-  --color-text: #0f172a;
-  --color-text-dark: #eef1f8;
-  --color-text-muted: #64748b;
-  --color-text-muted-dark: #8e9ab3;
-  --color-border: #e4e6ef;
-  --color-border-dark: #242d44;
-}
+/* Ink & Lime. Tokens flip under .dark, so most classes need no dark: twin.
+   static: emit every variable, since some are only read from plain CSS and charts. */
+@theme static {
+  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
 
-/* Theme-aware values for places Tailwind classes can't reach (charts, toasts) */
-:root {
-  --surface: var(--color-surface);
-  --text: var(--color-text);
-  --text-muted: var(--color-text-muted);
-  --border: var(--color-border);
-  --chart-grid: #e8eaf2;
+  --color-bg: #f5f5f2;
+  --color-surface: #ffffff;
+  --color-sunken: #f0f0ec;
+  --color-raised: #ffffff;
+  --color-line: #e6e6e1;
+  --color-divider: #eeeeea;
+  --color-ink: #0e0f0c;
+  --color-ink-inverse: #f5f5f2;
+  --color-muted: #5e6259;
+  --color-accent: #cdf24a;
+  --color-on-accent: #0e0f0c;
+  --color-income: #177245;
+  --color-income-soft: #d9f2e4;
+  --color-danger: #c2410c;
+  --color-bar: #8e9287;
+
+  /* Balance card and bottom dock: ink in light mode */
+  --color-hero: #0e0f0c;
+  --color-hero-ink: #f5f5f2;
+  --color-hero-muted: #a3a79c;
+  --color-hero-tile: #1c1e1a;
+  --color-hero-track: #2a2c27;
+  --color-hero-fill: #cdf24a;
+  --color-dock: #0e0f0c;
+  --color-dock-active: #24261f;
+  --color-dock-muted: #9a9e92;
 }
 
 .dark {
-  --surface: var(--color-surface-dark);
-  --text: var(--color-text-dark);
-  --text-muted: var(--color-text-muted-dark);
-  --border: var(--color-border-dark);
-  --chart-grid: #232c42;
+  --color-bg: #0b0c0a;
+  --color-surface: #161814;
+  --color-sunken: #1e201b;
+  --color-raised: #33362e;
+  --color-line: #24261f;
+  --color-divider: #22241f;
+  --color-ink: #f2f3ee;
+  --color-ink-inverse: #0e0f0c;
+  --color-muted: #9a9e92;
+  --color-income: #5bd08a;
+  --color-income-soft: #0f2a1b;
+  --color-danger: #fb8a5c;
+  --color-bar: #6e7268;
+
+  /* Balance card turns lime in dark mode */
+  --color-hero: var(--color-accent);
+  --color-hero-ink: #0e0f0c;
+  --color-hero-muted: rgb(14 15 12 / 0.7);
+  --color-hero-tile: rgb(14 15 12 / 0.08);
+  --color-hero-track: rgb(14 15 12 / 0.14);
+  --color-hero-fill: #0e0f0c;
+  --color-dock: #1e201b;
+  --color-dock-active: #2e3029;
 }
+
+/* Category tiles: soft tint behind a darker icon (lighter icon in dark mode) */
+.cat-food { --cat-bg: #ffe8d6; --cat-fg: #b4470b; }
+.cat-transport { --cat-bg: #dcebff; --cat-fg: #1d5fc2; }
+.cat-groceries { --cat-bg: #e3f4d2; --cat-fg: #3e7a12; }
+.cat-bills { --cat-bg: #ece4ff; --cat-fg: #5b3cc4; }
+.cat-shopping { --cat-bg: #ffe0ee; --cat-fg: #b8246a; }
+.cat-entertainment { --cat-bg: #fff0c7; --cat-fg: #946200; }
+.cat-pocketmoney { --cat-bg: #fff0c7; --cat-fg: #946200; }
+.cat-investment { --cat-bg: #efe1fb; --cat-fg: #7a35b0; }
+.cat-freelance { --cat-bg: #d5f1f6; --cat-fg: #0b6f82; }
+.cat-salary { --cat-bg: #d9f2e4; --cat-fg: #177245; }
+.cat-gift { --cat-bg: #ffe1e4; --cat-fg: #be1e3a; }
+.cat-other { --cat-bg: #ecece8; --cat-fg: #5e6259; }
+
+.dark .cat-food { --cat-bg: #3a2314; --cat-fg: #ff9f63; }
+.dark .cat-transport { --cat-bg: #16263f; --cat-fg: #7db3ff; }
+.dark .cat-groceries { --cat-bg: #1f3012; --cat-fg: #9bd65e; }
+.dark .cat-bills { --cat-bg: #251d42; --cat-fg: #b4a0ff; }
+.dark .cat-shopping { --cat-bg: #3a1629; --cat-fg: #ff8cc0; }
+.dark .cat-entertainment { --cat-bg: #352a0c; --cat-fg: #f5c54a; }
+.dark .cat-pocketmoney { --cat-bg: #352a0c; --cat-fg: #f5c54a; }
+.dark .cat-investment { --cat-bg: #2c1840; --cat-fg: #d29cff; }
+.dark .cat-freelance { --cat-bg: #0e2e35; --cat-fg: #5cd3e6; }
+.dark .cat-salary { --cat-bg: #0f2a1b; --cat-fg: #5bd08a; }
+.dark .cat-gift { --cat-bg: #3a1419; --cat-fg: #ff8a99; }
+.dark .cat-other { --cat-bg: #24261f; --cat-fg: #b5b8ad; }
 
 @layer base {
   * {
@@ -52,7 +96,7 @@
   }
 
   html {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
@@ -60,15 +104,14 @@
 
   body {
     background-color: var(--color-bg);
-    color: var(--color-text);
+    color: var(--color-ink);
     min-height: 100dvh;
     overflow-x: hidden;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  .dark body {
-    background-color: var(--color-bg-dark);
-    color: var(--color-text-dark);
+  button:not(:disabled) {
+    cursor: pointer;
   }
 
   /* Custom scrollbar */
@@ -81,39 +124,21 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--color-border);
+    background: var(--color-line);
     border-radius: 999px;
-  }
-
-  .dark ::-webkit-scrollbar-thumb {
-    background: var(--color-border-dark);
   }
 }
 
 @layer utilities {
   /* Card surface */
-  .glass-card {
+  .card {
     background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -16px rgb(15 23 42 / 0.12);
+    border: 1px solid var(--color-line);
   }
 
-  .dark .glass-card {
-    background: var(--color-surface-dark);
-    border-color: var(--color-border-dark);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
-  }
-
-  /* Gradient backgrounds */
-  .gradient-primary {
-    background: linear-gradient(135deg, var(--color-primary) 0%, #8b5cf6 100%);
-  }
-
-  .gradient-hero {
-    background:
-      radial-gradient(90% 120% at 100% 0%, rgb(236 72 153 / 0.35) 0%, transparent 55%),
-      radial-gradient(80% 100% at 0% 100%, rgb(56 189 248 / 0.25) 0%, transparent 60%),
-      linear-gradient(135deg, #5b5ff0 0%, #7c3aed 60%, #9333ea 100%);
+  .cat-tile {
+    background: var(--cat-bg);
+    color: var(--cat-fg);
   }
 
   /* Mic "listening" ripples */
@@ -122,14 +147,6 @@
   }
   .mic-ripple-delay {
     animation-delay: 0.9s;
-  }
-
-  .gradient-income {
-    background: linear-gradient(135deg, var(--color-income) 0%, #34d399 100%);
-  }
-
-  .gradient-expense {
-    background: linear-gradient(135deg, var(--color-expense) 0%, #f87171 100%);
   }
 
   /* Entry animations */
@@ -221,43 +238,6 @@
     animation: none !important;
     opacity: 1 !important;
   }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-/* Loading skeleton */
-.skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--color-border) 25%,
-    #f1f5f9 50%,
-    var(--color-border) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
-  border-radius: 8px;
-}
-
-.dark .skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--color-border-dark) 25%,
-    #475569 50%,
-    var(--color-border-dark) 75%
-  );
-  background-size: 200% 100%;
-}
-
-/* Toast overrides */
-.toast-custom {
-  font-family: 'Inter', sans-serif !important;
 }
 
 /* Bottom sheet backdrop */

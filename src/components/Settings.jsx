@@ -5,9 +5,10 @@ import { isSupabaseConfigured, checkSupabaseHealth } from '../supabaseClient';
 import { browserSpeechSupported } from '../voice/useVoiceInput';
 import {
   Moon, Sun, Download, Upload, Shield, ChevronRight, Database, Smartphone, Cloud, RefreshCw, CheckCircle2,
-  Mic, Sparkles,
+  Mic, Sparkles, CloudCheck,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { Segmented, Switch } from './Controls';
 
 export default function Settings() {
   const { darkMode, toggleDarkMode, refreshTransactions, transactions, voiceSettings, updateVoiceSettings } = useApp();
@@ -82,220 +83,142 @@ export default function Settings() {
     }
   };
 
+
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5">
       {/* App info */}
-      <div className="glass-card rounded-2xl p-5 text-center">
-        <div className="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-primary/20">
-          <span className="text-2xl font-bold text-white">₹</span>
+      <div className="bg-hero text-hero-ink rounded-3xl p-4 flex items-center gap-3.5">
+        <span className="w-14 h-14 shrink-0 rounded-[18px] bg-accent text-on-accent dark:bg-on-accent dark:text-accent flex items-center justify-center text-[26px] font-bold">
+          ₹
+        </span>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-[17px] font-semibold">SpendWise</h2>
+          <p className="text-[13px] text-hero-muted">Personal expense tracker · Offline-first</p>
         </div>
-        <h2 className="text-lg font-bold text-text dark:text-text-dark">SpendWise</h2>
-        <p className="text-xs text-text-muted dark:text-text-muted-dark mt-1">Personal Expense Tracker</p>
-        <p className="text-[10px] text-text-muted dark:text-text-muted-dark mt-0.5">v1.0.0 · Offline-First PWA</p>
+        <span className="shrink-0 text-[11px] font-semibold rounded-full px-2 py-1 border border-current/25">v1.0.0</span>
       </div>
 
       {/* Appearance */}
-      <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-border dark:border-border-dark">
-          <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase tracking-wider">Appearance</p>
-        </div>
+      <Group title="Appearance">
         <button
           onClick={toggleDarkMode}
-          className="w-full flex items-center gap-4 px-5 py-4 press-effect hover:bg-bg/50 dark:hover:bg-bg-dark/50 transition-colors"
+          role="switch"
+          aria-checked={darkMode}
+          className={rowButton}
         >
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            {darkMode ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-primary" />}
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-sm font-semibold text-text dark:text-text-dark">Dark Mode</p>
-            <p className="text-xs text-text-muted dark:text-text-muted-dark">{darkMode ? 'On' : 'Off'}</p>
-          </div>
-          <div className={`w-12 h-7 rounded-full p-1 transition-colors duration-200 ${darkMode ? 'bg-primary' : 'bg-border dark:bg-border-dark'}`}>
-            <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${darkMode ? 'translate-x-5' : 'translate-x-0'}`} />
-          </div>
+          <RowIcon icon={darkMode ? Moon : Sun} />
+          <RowText title="Dark mode" sub={darkMode ? 'On' : 'Off'} />
+          <Switch on={darkMode} />
         </button>
-      </div>
+      </Group>
 
       {/* Voice input */}
-      <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-border dark:border-border-dark">
-          <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase tracking-wider">Voice Input</p>
-        </div>
-
-        <div className="px-5 py-4 border-b border-border/50 dark:border-border-dark/50">
-          <div className="flex items-center gap-4 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Mic className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-text dark:text-text-dark">Speech recognition</p>
-              <p className="text-xs text-text-muted dark:text-text-muted-dark">
-                {voiceSettings.engine === 'on-device'
+      <Group title="Voice input">
+        <div className="p-3.5 flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <RowIcon icon={Mic} />
+            <RowText
+              title="Speech recognition"
+              sub={
+                voiceSettings.engine === 'on-device'
                   ? 'Private: audio stays on this device. One-time ~41 MB model download.'
                   : browserSpeechSupported
                     ? "Fast, using your browser's speech service. Falls back to on-device if it fails."
-                    : 'Your browser has no built-in speech service, so the on-device model is used.'}
-              </p>
-            </div>
+                    : 'Your browser has no built-in speech service, so the on-device model is used.'
+              }
+            />
           </div>
-          <div className="flex bg-bg dark:bg-bg-dark rounded-xl p-1 gap-1">
-            {[
-              ['auto', 'Auto'],
-              ['on-device', 'On-device only'],
-            ].map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => updateVoiceSettings({ engine: key })}
-                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                  voiceSettings.engine === key
-                    ? 'bg-primary text-white shadow-md'
-                    : 'text-text-muted dark:text-text-muted-dark'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            tone="ink"
+            size="sm"
+            value={voiceSettings.engine}
+            onChange={(engine) => updateVoiceSettings({ engine })}
+            options={[
+              { value: 'auto', label: 'Auto' },
+              { value: 'on-device', label: 'On-device only' },
+            ]}
+          />
         </div>
-
+        <Divider />
         <button
           onClick={() => updateVoiceSettings({ smartCategories: !voiceSettings.smartCategories })}
-          className="w-full flex items-center gap-4 px-5 py-4 press-effect hover:bg-bg/50 dark:hover:bg-bg-dark/50 transition-colors"
+          role="switch"
+          aria-checked={voiceSettings.smartCategories}
+          className={rowButton}
         >
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-primary" />
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-sm font-semibold text-text dark:text-text-dark">AI category detection</p>
-            <p className="text-xs text-text-muted dark:text-text-muted-dark">
-              On-device model picks a category when keywords don't match (~23 MB, one-time)
-            </p>
-          </div>
-          <div className={`w-12 h-7 shrink-0 rounded-full p-1 transition-colors duration-200 ${voiceSettings.smartCategories ? 'bg-primary' : 'bg-border dark:bg-border-dark'}`}>
-            <div className={`w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${voiceSettings.smartCategories ? 'translate-x-5' : 'translate-x-0'}`} />
-          </div>
+          <RowIcon icon={Sparkles} />
+          <RowText
+            title="AI category detection"
+            sub="On-device model picks a category when keywords don't match (~23 MB, one-time)"
+          />
+          <Switch on={voiceSettings.smartCategories} />
         </button>
-      </div>
+      </Group>
 
       {/* Cloud & Supabase */}
-      <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-border dark:border-border-dark flex items-center justify-between">
-          <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase tracking-wider">Cloud Database</p>
+      <Group title="Cloud database">
+        <div className={row}>
+          <RowIcon icon={isSupabaseConfigured ? CloudCheck : Cloud} tone={isSupabaseConfigured ? 'income' : undefined} />
+          <RowText
+            title={isSupabaseConfigured ? 'Supabase cloud sync' : 'Local storage only'}
+            sub={
+              isSupabaseConfigured
+                ? 'Your transactions are synced in real-time with your Supabase database'
+                : 'Configure VITE_SUPABASE_URL in .env to enable cloud sync'
+            }
+          />
           {isSupabaseConfigured ? (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-income/10 text-income border border-income/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-income animate-pulse" />
-              Connected
+            <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold text-income">
+              <span className="w-2 h-2 rounded-full bg-income animate-pulse" />
+              Live
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-text-muted/10 text-text-muted dark:text-text-muted-dark border border-border dark:border-border-dark">
-              Offline Only
-            </span>
+            <span className="shrink-0 text-xs font-semibold text-muted">Offline only</span>
           )}
-        </div>
-
-        <div className="px-5 py-4 border-b border-border/50 dark:border-border-dark/50 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Cloud className="w-5 h-5 text-primary" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-text dark:text-text-dark">
-              {isSupabaseConfigured ? 'Supabase Cloud Sync' : 'Local Storage Only'}
-            </p>
-            <p className="text-xs text-text-muted dark:text-text-muted-dark">
-              {isSupabaseConfigured
-                ? 'Your transactions are synced in real-time with your Supabase database'
-                : 'Configure VITE_SUPABASE_URL in .env to enable cloud sync'}
-            </p>
-          </div>
         </div>
 
         {isSupabaseConfigured && (
           <>
-            <button
-              onClick={handleTestSupabase}
-              disabled={testingSupabase}
-              className="w-full flex items-center gap-4 px-5 py-3.5 press-effect hover:bg-bg/50 dark:hover:bg-bg-dark/50 transition-colors border-b border-border/50 dark:border-border-dark/50"
-            >
-              <div className="w-10 h-10 rounded-xl bg-income/10 flex items-center justify-center">
-                <CheckCircle2 className={`w-5 h-5 text-income ${testingSupabase ? 'animate-spin' : ''}`} />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-semibold text-text dark:text-text-dark">Test Connection</p>
-                <p className="text-xs text-text-muted dark:text-text-muted-dark">
-                  {testingSupabase ? 'Checking Supabase connection...' : 'Verify Supabase credentials and database table'}
-                </p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-text-muted dark:text-text-muted-dark" />
+            <Divider />
+            <button onClick={handleTestSupabase} disabled={testingSupabase} className={rowButton}>
+              <RowIcon icon={CheckCircle2} spin={testingSupabase} />
+              <RowText
+                title="Test connection"
+                sub={testingSupabase ? 'Checking Supabase connection...' : 'Verify Supabase credentials and database table'}
+              />
+              <Chevron />
             </button>
-
-            <button
-              onClick={handleSyncToSupabase}
-              disabled={syncingCloud}
-              className="w-full flex items-center gap-4 px-5 py-3.5 press-effect hover:bg-bg/50 dark:hover:bg-bg-dark/50 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <RefreshCw className={`w-5 h-5 text-primary ${syncingCloud ? 'animate-spin' : ''}`} />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-semibold text-text dark:text-text-dark">Sync Local Data to Cloud</p>
-                <p className="text-xs text-text-muted dark:text-text-muted-dark">
-                  {syncingCloud ? 'Uploading local transactions...' : 'Push local offline entries to Supabase table'}
-                </p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-text-muted dark:text-text-muted-dark" />
+            <Divider />
+            <button onClick={handleSyncToSupabase} disabled={syncingCloud} className={rowButton}>
+              <RowIcon icon={RefreshCw} spin={syncingCloud} />
+              <RowText
+                title="Sync local data to cloud"
+                sub={syncingCloud ? 'Uploading local transactions...' : 'Push local offline entries to Supabase table'}
+              />
+              <Chevron />
             </button>
           </>
         )}
-      </div>
+      </Group>
 
       {/* Data management */}
-      <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-border dark:border-border-dark">
-          <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase tracking-wider">Data</p>
+      <Group title="Data">
+        <div className={row}>
+          <RowIcon icon={Database} />
+          <RowText title="Total entries" sub={isSupabaseConfigured ? 'Cloud synced' : 'Stored locally'} />
+          <span className="shrink-0 text-[17px] font-semibold tabular-nums">{transactions.length}</span>
         </div>
-
-        <div className="px-5 py-3 border-b border-border/50 dark:border-border-dark/50 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-income/10 flex items-center justify-center">
-            <Database className="w-5 h-5 text-income" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-text dark:text-text-dark">Total Entries</p>
-            <p className="text-xs text-text-muted dark:text-text-muted-dark">
-              {transactions.length} transactions {isSupabaseConfigured ? '(Cloud synced)' : 'stored locally'}
-            </p>
-          </div>
-        </div>
-
-
-        <button
-          onClick={handleExportData}
-          className="w-full flex items-center gap-4 px-5 py-4 press-effect hover:bg-bg/50 dark:hover:bg-bg-dark/50 transition-colors border-b border-border/50 dark:border-border-dark/50"
-        >
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Download className="w-5 h-5 text-primary" />
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-sm font-semibold text-text dark:text-text-dark">Backup Data</p>
-            <p className="text-xs text-text-muted dark:text-text-muted-dark">Export all data as JSON file</p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-text-muted dark:text-text-muted-dark" />
+        <Divider />
+        <button onClick={handleExportData} className={rowButton}>
+          <RowIcon icon={Download} />
+          <RowText title="Back up data" sub="Export all data as a JSON file" />
+          <Chevron />
         </button>
-
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={importing}
-          className="w-full flex items-center gap-4 px-5 py-4 press-effect hover:bg-bg/50 dark:hover:bg-bg-dark/50 transition-colors"
-        >
-          <div className="w-10 h-10 rounded-xl bg-expense/10 flex items-center justify-center">
-            <Upload className="w-5 h-5 text-expense" />
-          </div>
-          <div className="flex-1 text-left">
-            <p className="text-sm font-semibold text-text dark:text-text-dark">
-              {importing ? 'Importing...' : 'Restore Data'}
-            </p>
-            <p className="text-xs text-text-muted dark:text-text-muted-dark">Import from a JSON backup file</p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-text-muted dark:text-text-muted-dark" />
+        <Divider />
+        <button onClick={() => fileInputRef.current?.click()} disabled={importing} className={rowButton}>
+          <RowIcon icon={Upload} />
+          <RowText title={importing ? 'Importing...' : 'Restore backup'} sub="Import from a JSON backup file" />
+          <Chevron />
         </button>
         <input
           ref={fileInputRef}
@@ -304,39 +227,68 @@ export default function Settings() {
           onChange={handleImportData}
           className="hidden"
         />
-      </div>
+      </Group>
 
       {/* About */}
-      <div className="glass-card rounded-2xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-border dark:border-border-dark">
-          <p className="text-xs font-bold text-text-muted dark:text-text-muted-dark uppercase tracking-wider">About</p>
+      <Group title="About">
+        <div className={row}>
+          <RowIcon icon={Smartphone} />
+          <RowText title="Install as app" sub='Use "Add to Home Screen" in your browser menu for the best experience' />
         </div>
-        <div className="px-5 py-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Smartphone className="w-5 h-5 text-primary" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-text dark:text-text-dark">Install as App</p>
-            <p className="text-xs text-text-muted dark:text-text-muted-dark">
-              Use "Add to Home Screen" in your browser menu for the best experience
-            </p>
-          </div>
-        </div>
-        <div className="px-5 py-4 flex items-center gap-4 border-t border-border/50 dark:border-border-dark/50">
-          <div className="w-10 h-10 rounded-xl bg-income/10 flex items-center justify-center">
-            <Shield className="w-5 h-5 text-income" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-text dark:text-text-dark">Privacy</p>
-            <p className="text-xs text-text-muted dark:text-text-muted-dark">
-              {isSupabaseConfigured
+        <Divider />
+        <div className={row}>
+          <RowIcon icon={Shield} />
+          <RowText
+            title="Privacy"
+            sub={`${
+              isSupabaseConfigured
                 ? 'Entries are stored on this device and in your own Supabase project.'
-                : 'All data is stored locally on your device. Nothing is sent to any server.'}
-              {' '}Voice in on-device mode never leaves your phone.
-            </p>
-          </div>
+                : 'All data is stored locally on your device. Nothing is sent to any server.'
+            } Voice in on-device mode never leaves your phone.`}
+          />
         </div>
-      </div>
+      </Group>
     </div>
   );
+}
+
+const row = 'flex items-center gap-3 p-3.5';
+const rowButton = `w-full text-left ${row} hover:bg-sunken/60 transition-colors disabled:opacity-60 disabled:cursor-wait`;
+
+function Group({ title, children }) {
+  return (
+    <section>
+      <h2 className="mx-1 mb-2.5 text-xs font-semibold uppercase tracking-[0.06em] text-muted">{title}</h2>
+      <div className="card rounded-[22px] overflow-hidden">{children}</div>
+    </section>
+  );
+}
+
+function RowIcon({ icon: Icon, tone, spin }) {
+  return (
+    <span
+      className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${
+        tone === 'income' ? 'bg-income-soft text-income' : 'bg-sunken'
+      }`}
+    >
+      <Icon className={`w-5 h-5 ${spin ? 'animate-spin' : ''}`} />
+    </span>
+  );
+}
+
+function RowText({ title, sub }) {
+  return (
+    <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+      <span className="text-[15px] font-medium">{title}</span>
+      {sub && <span className="text-[13px] leading-snug text-muted">{sub}</span>}
+    </span>
+  );
+}
+
+function Divider() {
+  return <div className="h-px bg-divider ml-[66px]" />;
+}
+
+function Chevron() {
+  return <ChevronRight className="w-[18px] h-[18px] shrink-0 text-muted" strokeWidth={2.2} />;
 }
