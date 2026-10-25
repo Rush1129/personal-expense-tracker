@@ -5,10 +5,11 @@ import { isSupabaseConfigured, checkSupabaseHealth } from '../supabaseClient';
 import { browserSpeechSupported } from '../voice/useVoiceInput';
 import {
   Moon, Sun, Download, Upload, Shield, ChevronRight, Database, Smartphone, Cloud, RefreshCw, CheckCircle2,
-  Mic, Sparkles, CloudCheck,
+  Mic, Sparkles, CloudCheck, LockKeyhole,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Segmented, Switch } from './Controls';
+import { accessEnabled, lockDevice } from '../access';
 
 export default function Settings() {
   const { darkMode, toggleDarkMode, refreshTransactions, transactions, voiceSettings, updateVoiceSettings } = useApp();
@@ -247,6 +248,22 @@ export default function Settings() {
             } Voice in on-device mode never leaves your phone.`}
           />
         </div>
+        {accessEnabled && (
+          <>
+            <Divider />
+            <button
+              onClick={() => {
+                lockDevice();
+                window.location.reload();
+              }}
+              className={rowButton}
+            >
+              <RowIcon icon={LockKeyhole} />
+              <RowText title="Lock this device" sub="Ask for the access code again the next time the app opens" />
+              <Chevron />
+            </button>
+          </>
+        )}
       </Group>
     </div>
   );
