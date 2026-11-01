@@ -1,20 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../AppContext';
-import { getCategoriesByType, getCategoryInfo, formatDate } from '../utils';
+import { getCategoriesByType, getCategoryInfo, formatDate, getRepeatSuggestions } from '../utils';
 import { matchCategoryByKeywords } from '../voice/categoryRules';
 import { X, Check, ArrowUpRight, ArrowDownLeft, CalendarDays, ChevronDown, Sparkles } from 'lucide-react';
 import DatePicker from './DatePicker';
 import TimePicker from './TimePicker';
 import CategoryIcon from './CategoryIcon';
 import { Segmented } from './Controls';
+import { RepeatChip } from './QuickAdd';
 
 const sameDay = (a, b) => a.toDateString() === b.toDateString();
 
 // prefill: values from a voice entry (new transaction, not an edit)
 export default function EntryForm({ editTransaction, prefill, onClose }) {
-  const { addTransaction, updateTransaction } = useApp();
+  const { addTransaction, updateTransaction, transactions } = useApp();
   const isEditing = !!editTransaction;
   const initial = editTransaction || prefill;
+  // Frequent entries to fill the form from (blank new entries only)
+  const repeats = useMemo(() => (initial ? [] : getRepeatSuggestions(transactions)), [initial, transactions]);
 
   const [type, setType] = useState(initial?.type || 'expense');
   const [amount, setAmount] = useState(initial?.amount?.toString() || '');
@@ -43,6 +46,20 @@ export default function EntryForm({ editTransaction, prefill, onClose }) {
     setDescription(value);
     if (!categoryTouched) setCategory(suggest(value, type));
   };
+
+  const fillFromRepeat = (repeat) => {
+    setType(repeat.type);
+    setAmount(String(repeat.amount));
+    setDescription(repeat.description);
+    setCategory(repeat.category);
+    setCategoryTouched(true);
+  };
+
+  const isRepeatFilled = (repeat) =>
+    type === repeat.type &&
+    Number(amount) === repeat.amount &&
+    description === repeat.description &&
+    category === repeat.category;
 
   const handleTypeChange = (next) => {
     setType(next);
@@ -146,6 +163,23 @@ export default function EntryForm({ editTransaction, prefill, onClose }) {
 
         <form onSubmit={handleSubmit}>
           <div className="px-5 pb-5 space-y-5">
+            {/* Recent repeats */}
+            {repeats.length > 0 && (
+              <div>
+                <span className={label}>Add again</span>
+                <div className="chip-scroller flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5 scroll-px-5 pb-1">
+                  {repeats.map((repeat) => (
+                    <RepeatChip
+                      key={repeat.key}
+                      repeat={repeat}
+                      active={isRepeatFilled(repeat)}
+                      onClick={() => fillFromRepeat(repeat)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Type toggle */}
             <Segmented
               value={type}

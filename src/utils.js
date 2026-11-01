@@ -111,6 +111,39 @@ export function calculateTotals(transactions) {
   };
 }
 
+// Entries made at least twice in the last `days` days with the same type, category,
+// amount and description: the one-tap repeats. Most frequent first, then most recent.
+export function getRepeatSuggestions(transactions, { days = 60, limit = 6, now = new Date() } = {}) {
+  const since = now.getTime() - days * 24 * 60 * 60 * 1000;
+  const groups = new Map();
+
+  transactions.forEach((t) => {
+    const time = new Date(t.date).getTime();
+    if (time < since) return;
+    const description = (t.description || '').trim();
+    const category = t.category || 'other';
+    const amount = Number(t.amount);
+    const key = [t.type, category, amount, description.toLowerCase()].join('|');
+
+    const group = groups.get(key);
+    if (!group) {
+      groups.set(key, { key, type: t.type, category, amount, description, count: 1, last: time });
+    } else {
+      group.count += 1;
+      // Show the description as it was typed most recently
+      if (time > group.last) {
+        group.last = time;
+        group.description = description;
+      }
+    }
+  });
+
+  return [...groups.values()]
+    .filter((g) => g.count >= 2)
+    .sort((a, b) => b.count - a.count || b.last - a.last)
+    .slice(0, limit);
+}
+
 // Category definitions with icons, colors, and type ('expense' | 'income' | 'both')
 export const CATEGORIES = {
   // Expenses
