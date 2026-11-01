@@ -1,4 +1,5 @@
 import { matchCategoryByKeywords } from './categoryRules';
+import { looksLikeBankSms, parseBankSms } from './parseSms';
 
 // Turns a spoken sentence such as
 //   "Spent two hundred and fifty rupees on lunch at Domino's yesterday at 2 pm"
@@ -336,8 +337,10 @@ function cleanDescription(text) {
 
 // ---------- Main ----------
 
-export function parseTransaction(input, now = new Date()) {
+// defaultType: used when the sentence has no income or expense wording
+export function parseTransaction(input, now = new Date(), { defaultType = 'expense' } = {}) {
   const transcript = (input || '').trim();
+  if (looksLikeBankSms(transcript)) return parseBankSms(transcript, now);
   const text = wordsToDigits(convertOrdinals(normalise(transcript)));
   const state = { masked: text };
 
@@ -348,8 +351,11 @@ export function parseTransaction(input, now = new Date()) {
 
   const description = cleanDescription(state.masked);
 
-  let type = 'expense';
+  let type = defaultType;
+  let typeWasSpoken = true;
   if (/\bgot paid\b/i.test(text) || (INCOME_CUES.test(text) && !EXPENSE_CUES.test(text))) type = 'income';
+  else if (EXPENSE_CUES.test(text)) type = 'expense';
+  else typeWasSpoken = false;
 
   const resolved = resolveTime(timeInfo, dateInfo.date, now, text);
   const date = new Date(dateInfo.date);
@@ -368,5 +374,79 @@ export function parseTransaction(input, now = new Date()) {
     date: date.toISOString(),
     hasTime: !!resolved,
     dateWasSpoken: !dateInfo.implicit,
+    typeWasSpoken,
   };
+}
+
+// ---------- Several entries in one sentence ----------
+
+// Commas, sentence breaks and "and" / "&" / "plus" / "aur" can separate entries.
+// Number words are merged first, so "two hundred and fifty" stays one amount.
+const SEPARATOR = /(\s*\|\s*|\s+(?:and|&|plus|aur)\s+)/i;
+
+function splitParts(transcript) {
+  const marked = transcript
+    .replace(/(\d),(?=\d)/g, '$1') // 2,500
+    .replace(/\b([ap])\.\s?m\b\.?/gi, '$1m') // p.m.
+    .replace(/\brs\b\./gi, 'rs') // Rs.
+    .replace(/(?<!\d)\.(?!\d)|[,;\n]+/g, ' | ');
+  const tokens = wordsToDigits(convertOrdinals(normalise(marked))).split(SEPARATOR);
+
+  // tokens alternate: part, separator, part, …
+  const parts = [];
+  for (let i = 0; i < tokens.length; i += 2) {
+    const text = tokens[i].trim();
+    if (text) parts.push({ text, joiner: i > 0 ? tokens[i - 1] : '' });
+  }
+  return parts;
+}
+
+const joinText = (a, joiner, b) => `${a}${joiner.includes('|') ? ' ' : ` ${joiner.trim()} `}${b}`;
+const hasAmount = (text, now) => Number(parseTransaction(text, now).amount) > 0;
+
+// "Chai 30 and samosa 20" → two entries. A part without its own amount stays with
+// its neighbour ("bread and butter 60" is one entry). A date or income/expense cue
+// said once applies to the parts that don't have their own.
+export function parseTransactions(input, now = new Date()) {
+  const transcript = (input || '').trim();
+  if (!transcript || looksLikeBankSms(transcript)) return [parseTransaction(transcript, now)];
+
+  const groups = [];
+  let carry = '';
+  for (const part of splitParts(transcript)) {
+    const text = carry ? joinText(carry, part.joiner, part.text) : part.text;
+    if (hasAmount(part.text, now)) {
+      groups.push(text);
+      carry = '';
+    } else if (groups.length && !carry) {
+      groups[groups.length - 1] = joinText(groups[groups.length - 1], part.joiner, part.text);
+    } else {
+      carry = text;
+    }
+  }
+  if (carry) {
+    if (groups.length) groups[groups.length - 1] = joinText(groups[groups.length - 1], ' ', carry);
+    else groups.push(carry);
+  }
+  if (groups.length < 2) return [parseTransaction(transcript, now)];
+
+  let entries = groups.map((g) => parseTransaction(g, now));
+
+  const cued = entries.find((e) => e.typeWasSpoken);
+  if (cued) {
+    entries = entries.map((e, i) => (e.typeWasSpoken ? e : parseTransaction(groups[i], now, { defaultType: cued.type })));
+  }
+
+  const spokenDays = [...new Set(entries.filter((e) => e.dateWasSpoken).map((e) => new Date(e.date).toDateString()))];
+  if (spokenDays.length === 1) {
+    const day = new Date(spokenDays[0]);
+    entries = entries.map((e) => {
+      if (e.dateWasSpoken) return e;
+      const d = new Date(e.date);
+      d.setFullYear(day.getFullYear(), day.getMonth(), day.getDate());
+      return { ...e, date: d.toISOString(), dateWasSpoken: true };
+    });
+  }
+
+  return entries.map((e) => ({ ...e, transcript }));
 }

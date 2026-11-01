@@ -13,11 +13,40 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Loaded without blocking the first paint; system fonts show until Geist arrives -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'" />
     <title>SpendWise — Expense Tracker</title>
+    <script>
+      // Apply the saved theme before anything paints (same rule as AppContext)
+      try {
+        var saved = localStorage.getItem('spendwise-dark-mode');
+        if (saved !== null ? JSON.parse(saved) : matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
+    <style>
+      /* Startup splash, shown until the app replaces #root. Matches the loading screen in App.jsx. */
+      html { background: #f5f5f2; }
+      html.dark { background: #0b0c0a; }
+      .boot {
+        min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+        font: 600 15px/1 'Geist', system-ui, -apple-system, sans-serif; color: #5e6259;
+      }
+      html.dark .boot { color: #9a9e92; }
+      .boot-logo { width: 64px; height: 64px; border-radius: 20px; background: #cdf24a; color: #0e0f0c; display: flex; align-items: center; justify-content: center; }
+      .boot-logo svg { height: 32px; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot" role="status" aria-label="Loading SpendWise">
+        <span class="boot-logo">
+          <svg viewBox="65 -714 451 714" fill="currentColor" aria-hidden="true"><path d="M245 0L65 -314L65 -388L125 -388Q178 -388 214 -411.5Q250 -435 260 -477L65 -477L65 -551L259 -551Q250 -589 222 -614.5Q194 -640 144 -640L65 -640L65 -714L516 -714L516 -640L359 -640Q394 -602 403 -551L516 -551L516 -477L405 -477Q395 -403 348 -361.5Q301 -320 227 -305L423 0L245 0Z"/></svg>
+        </span>
+        SpendWise
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

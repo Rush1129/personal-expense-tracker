@@ -1,17 +1,23 @@
+import { createElement } from 'react';
+import { flushSync } from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import { jsPDF } from 'jspdf';
-import { autoTable } from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { formatINR, formatDate, formatTime, getCategoryInfo, calculateTotals } from './utils';
+import {
+  formatINR, formatDate, formatTime, getCategoryInfo, calculateTotals, groupByDate, getMonthName, CATEGORIES,
+} from './utils';
+import { CATEGORY_ICONS } from './components/categoryIcons';
 
 // Load and register Noto Sans fonts with jsPDF for ₹ symbol support
 async function registerNotoSansFont(doc) {
   const loadFont = async (url, filename, fontName, fontStyle) => {
     const response = await fetch(url);
-    const buffer = await response.arrayBuffer();
-    const base64 = btoa(
-      new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-    );
-    doc.addFileToVFS(filename, base64);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    doc.addFileToVFS(filename, btoa(binary));
     doc.addFont(filename, fontName, fontStyle);
   };
 
@@ -23,139 +29,372 @@ async function registerNotoSansFont(doc) {
   doc.setFont('NotoSans', 'normal');
 }
 
+// ==========================================
+// PDF report in the app's Ink & Lime look:
+// balance card, "Where it went", stats, then
+// the entries grouped by day like the Home list.
+// ==========================================
+
+// Light-mode tokens from index.css
+const C = {
+  bg: '#f5f5f2',
+  surface: '#ffffff',
+  sunken: '#f0f0ec',
+  line: '#e6e6e1',
+  divider: '#eeeeea',
+  ink: '#0e0f0c',
+  inkInverse: '#f5f5f2',
+  muted: '#5e6259',
+  accent: '#cdf24a',
+  income: '#177245',
+  heroMuted: '#a3a79c',
+  heroTile: '#1c1e1a',
+  heroTrack: '#2a2c27',
+  over: '#ff8a5c',
+};
+
+// Category tiles: [tint, icon colour] (.cat-* in index.css)
+const CAT_TINTS = {
+  food: ['#ffe8d6', '#b4470b'],
+  transport: ['#dcebff', '#1d5fc2'],
+  groceries: ['#e3f4d2', '#3e7a12'],
+  bills: ['#ece4ff', '#5b3cc4'],
+  shopping: ['#ffe0ee', '#b8246a'],
+  entertainment: ['#fff0c7', '#946200'],
+  pocketmoney: ['#fff0c7', '#946200'],
+  investment: ['#efe1fb', '#7a35b0'],
+  freelance: ['#d5f1f6', '#0b6f82'],
+  salary: ['#d9f2e4', '#177245'],
+  gift: ['#ffe1e4', '#be1e3a'],
+  other: ['#ecece8', '#5e6259'],
+};
+
+const PAGE_W = 210;
+const PAGE_H = 297;
+const LEFT = 14;
+const RIGHT = PAGE_W - 14;
+const WIDTH = RIGHT - LEFT;
+const BOTTOM = 280; // content stops here; the footer sits below
+const DAY_H = 14;
+const CONTINUED_H = 9;
+const ROW_H = 12;
+
+// The category icons as PNGs (the same lucide icons the app draws), keyed by category
+async function categoryIconImages() {
+  const toPng = (key) =>
+    new Promise((resolve, reject) => {
+      const host = document.createElement('div');
+      const root = createRoot(host);
+      flushSync(() => root.render(createElement(CATEGORY_ICONS[key], { size: 96, color: CAT_TINTS[key][1], strokeWidth: 2 })));
+      const markup = host.innerHTML;
+      root.unmount();
+
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 96;
+        canvas.getContext('2d').drawImage(img, 0, 0, 96, 96);
+        resolve([key, canvas.toDataURL('image/png')]);
+      };
+      img.onerror = reject;
+      img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+    });
+  try {
+    return Object.fromEntries(await Promise.all(Object.keys(CATEGORY_ICONS).map(toPng)));
+  } catch (err) {
+    console.warn('Category icons left out of the PDF:', err);
+    return {};
+  }
+}
+
 export async function exportToPDF(transactions, dateRange) {
   const doc = new jsPDF();
+  const [icons] = await Promise.all([categoryIconImages(), registerNotoSansFont(doc)]);
 
-  // Register Noto Sans font for ₹ symbol support
-  await registerNotoSansFont(doc);
+  const list = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const { totalIncome, totalExpense, netBalance } = calculateTotals(list);
+  const expenses = list.filter((t) => t.type === 'expense');
 
-  const { totalIncome, totalExpense, netBalance } = calculateTotals(transactions);
+  // ---------- Drawing helpers ----------
 
-  // Header
-  doc.setFontSize(22);
-  doc.setTextColor(99, 102, 241); // indigo
-  doc.text('SpendWise', 14, 22);
+  const setFont = (size, bold) => {
+    doc.setFont('NotoSans', bold ? 'bold' : 'normal');
+    doc.setFontSize(size);
+  };
+  const text = (str, x, y, { size = 10, bold = false, color = C.ink, align } = {}) => {
+    setFont(size, bold);
+    doc.setTextColor(color);
+    doc.text(String(str), x, y, align ? { align } : undefined);
+  };
+  // Shortens text with … to fit maxWidth
+  const fit = (str, maxWidth, size, bold = false) => {
+    setFont(size, bold);
+    let out = String(str);
+    if (doc.getTextWidth(out) <= maxWidth) return out;
+    while (out.length > 1 && doc.getTextWidth(`${out}…`) > maxWidth) out = out.slice(0, -1);
+    return `${out.trimEnd()}…`;
+  };
+  const card = (x, y, w, h, r) => {
+    doc.setFillColor(C.surface);
+    doc.setDrawColor(C.line);
+    doc.setLineWidth(0.25);
+    doc.roundedRect(x, y, w, h, r, r, 'FD');
+  };
+  const rule = (x1, x2, y) => {
+    doc.setDrawColor(C.divider);
+    doc.setLineWidth(0.25);
+    doc.line(x1, y, x2, y);
+  };
+  // The ↙ (income) and ↗ (expense) arrows from the balance card
+  const arrow = (cx, cy, incoming, color) => {
+    const s = 1.3;
+    doc.setDrawColor(color);
+    doc.setLineWidth(0.45);
+    doc.setLineCap('round');
+    if (incoming) {
+      doc.line(cx + s, cy - s, cx - s, cy + s);
+      doc.line(cx - s, cy + s, cx - s, cy + s - 1.7);
+      doc.line(cx - s, cy + s, cx - s + 1.7, cy + s);
+    } else {
+      doc.line(cx - s, cy + s, cx + s, cy - s);
+      doc.line(cx + s, cy - s, cx + s - 1.7, cy - s);
+      doc.line(cx + s, cy - s, cx + s, cy - s + 1.7);
+    }
+    doc.setLineCap('butt');
+  };
 
-  doc.setFontSize(10);
-  doc.setTextColor(100, 116, 139); // slate
-  doc.text('Expense Report', 14, 30);
+  const paintPage = () => {
+    doc.setFillColor(C.bg);
+    doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
+  };
+  let y = 14;
+  const newPage = () => {
+    doc.addPage();
+    paintPage();
+    y = 16;
+  };
+  const ensure = (height) => {
+    if (y + height > BOTTOM) newPage();
+  };
+  paintPage();
 
-  // Date range
-  doc.setFontSize(11);
-  doc.setTextColor(30, 41, 59);
-  doc.text(`Period: ${dateRange.label}`, 14, 40);
-  doc.text(`Generated: ${formatDate(new Date().toISOString())}`, 14, 47);
+  // ---------- Header ----------
 
-  // Summary cards
-  const summaryY = 55;
-  
-  // Income box
-  doc.setFillColor(220, 252, 231);
-  doc.roundedRect(14, summaryY, 55, 22, 3, 3, 'F');
-  doc.setFontSize(9);
-  doc.setTextColor(22, 163, 74);
-  doc.text('Total Income', 18, summaryY + 9);
-  doc.setFontSize(13);
-  doc.text(formatINR(totalIncome), 18, summaryY + 18);
+  doc.setFillColor(C.accent);
+  doc.roundedRect(LEFT, y, 12, 12, 3.75, 3.75, 'F');
+  text('₹', LEFT + 6, y + 9, { size: 23, bold: true, align: 'center' });
+  text('SpendWise', LEFT + 16, y + 5.6, { size: 15, bold: true });
+  text('Expense report', LEFT + 16, y + 10.6, { size: 8.5, color: C.muted });
+  text(dateRange.label, RIGHT, y + 5.6, { size: 11, bold: true, align: 'right' });
+  text(`Generated ${formatDate(new Date().toISOString())}`, RIGHT, y + 10.6, { size: 8, color: C.muted, align: 'right' });
+  y += 19;
 
-  // Expense box
-  doc.setFillColor(254, 226, 226);
-  doc.roundedRect(75, summaryY, 55, 22, 3, 3, 'F');
-  doc.setFontSize(9);
-  doc.setTextColor(220, 38, 38);
-  doc.text('Total Expenses', 79, summaryY + 9);
-  doc.setFontSize(13);
-  doc.text(formatINR(totalExpense), 79, summaryY + 18);
+  // ---------- Balance card ----------
 
-  // Net box
-  const netColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38];
-  doc.setFillColor(netBalance >= 0 ? 220 : 254, netBalance >= 0 ? 252 : 226, netBalance >= 0 ? 231 : 226);
-  doc.roundedRect(136, summaryY, 60, 22, 3, 3, 'F');
-  doc.setFontSize(9);
-  doc.setTextColor(...netColor);
-  doc.text('Net Balance', 140, summaryY + 9);
-  doc.setFontSize(13);
-  doc.text(`${netBalance >= 0 ? '+' : '-'}${formatINR(Math.abs(netBalance))}`, 140, summaryY + 18);
+  const spentPct = totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : null;
+  const heroH = spentPct !== null ? 61 : 52;
+  doc.setFillColor(C.ink);
+  doc.roundedRect(LEFT, y, WIDTH, heroH, 6, 6, 'F');
 
-  // Transaction table
-  const tableData = transactions
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .map((t) => [
-      formatDate(t.date),
-      formatTime(t.date),
-      t.type === 'income' ? 'Income' : 'Expense',
-      t.category ? getCategoryInfo(t.category).label : '-',
-      t.description || '-',
-      `${t.type === 'expense' ? '-' : '+'}${formatINR(t.amount)}`,
-    ]);
+  let hy = y + 10;
+  text('Net balance', LEFT + 7, hy, { size: 9, color: C.heroMuted });
+  const pill = `${list.length} ${list.length === 1 ? 'entry' : 'entries'}`;
+  setFont(8, true);
+  const pillW = doc.getTextWidth(pill) + 7;
+  doc.setFillColor(C.accent);
+  doc.roundedRect(RIGHT - 7 - pillW, hy - 4.4, pillW, 6.2, 3.1, 3.1, 'F');
+  text(pill, RIGHT - 7 - pillW / 2, hy - 0.2, { size: 8, bold: true, align: 'center' });
+  hy += 12;
+  text(`${netBalance < 0 ? '−' : ''}${formatINR(Math.abs(netBalance))}`, LEFT + 7, hy, { size: 28, bold: true, color: C.inkInverse });
+  hy += 8;
 
-  autoTable(doc, {
-    startY: summaryY + 30,
-    head: [['Date', 'Time', 'Type', 'Category', 'Description', 'Amount']],
-    body: tableData,
-    theme: 'striped',
-    headStyles: {
-      fillColor: [99, 102, 241],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      fontSize: 9,
-      font: 'NotoSans',
-    },
-    bodyStyles: {
-      fontSize: 8,
-      textColor: [30, 41, 59],
-      font: 'NotoSans',
-    },
-    alternateRowStyles: {
-      fillColor: [248, 250, 252],
-    },
-    columnStyles: {
-      0: { cellWidth: 25 },
-      1: { cellWidth: 18 },
-      2: { cellWidth: 18 },
-      3: { cellWidth: 30 },
-      5: { cellWidth: 28, halign: 'right' },
-    },
-    didParseCell: function (data) {
-      if (data.column.index === 5 && data.section === 'body') {
-        const text = data.cell.raw;
-        if (text.startsWith('-')) {
-          data.cell.styles.textColor = [220, 38, 38];
-        } else {
-          data.cell.styles.textColor = [22, 163, 74];
-        }
-        data.cell.styles.fontStyle = 'bold';
-      }
-      if (data.column.index === 2 && data.section === 'body') {
-        const text = data.cell.raw;
-        if (text === 'Expense') {
-          data.cell.styles.textColor = [220, 38, 38];
-        } else {
-          data.cell.styles.textColor = [22, 163, 74];
-        }
-      }
-    },
-    margin: { left: 14, right: 14 },
+  if (spentPct !== null) {
+    const over = spentPct > 100;
+    text(over ? 'Over budget' : `${spentPct}% of income spent`, LEFT + 7, hy, { size: 8, color: C.heroMuted });
+    text(`${formatINR(totalExpense)} of ${formatINR(totalIncome)}`, RIGHT - 7, hy, { size: 8, color: C.heroMuted, align: 'right' });
+    hy += 2.5;
+    const trackW = WIDTH - 14;
+    doc.setFillColor(C.heroTrack);
+    doc.roundedRect(LEFT + 7, hy, trackW, 2, 1, 1, 'F');
+    if (spentPct > 0) {
+      doc.setFillColor(over ? C.over : C.accent);
+      doc.roundedRect(LEFT + 7, hy, Math.max(2, (trackW * Math.min(100, spentPct)) / 100), 2, 1, 1, 'F');
+    }
+    hy += 6.5;
+  }
+
+  const tileW = (WIDTH - 14 - 4) / 2;
+  [
+    ['Income', totalIncome, true, C.accent],
+    ['Expenses', totalExpense, false, C.inkInverse],
+  ].forEach(([label, value, incoming, arrowColor], i) => {
+    const tx = LEFT + 7 + i * (tileW + 4);
+    doc.setFillColor(C.heroTile);
+    doc.roundedRect(tx, hy, tileW, 16, 4, 4, 'F');
+    arrow(tx + 5.2, hy + 5.4, incoming, arrowColor);
+    text(label, tx + 8.8, hy + 6.4, { size: 8, color: C.heroMuted });
+    text(formatINR(value), tx + 4, hy + 12.8, { size: 12, bold: true, color: C.inkInverse });
   });
+  y += heroH + 5;
 
-  // Page numbers
+  // ---------- Where it went ----------
+
+  const byCategory = {};
+  expenses.forEach((t) => {
+    const key = CATEGORIES[t.category] ? t.category : 'other';
+    byCategory[key] = (byCategory[key] || 0) + Number(t.amount);
+  });
+  const cats = Object.entries(byCategory)
+    .map(([key, value]) => ({ key, value, ...getCategoryInfo(key) }))
+    .sort((a, b) => b.value - a.value);
+
+  if (cats.length && totalExpense > 0) {
+    const rowH = 7;
+    const cardH = 25 + cats.length * rowH;
+    ensure(cardH);
+    card(LEFT, y, WIDTH, cardH, 5);
+    text('Where it went', LEFT + 6, y + 9, { size: 11, bold: true });
+    text(`${formatINR(totalExpense)} spent`, RIGHT - 6, y + 9, { size: 8.5, color: C.muted, align: 'right' });
+
+    // One segmented bar, like the Home card
+    const gap = 0.8;
+    const barW = WIDTH - 12 - gap * (cats.length - 1);
+    const widths = cats.map((c) => Math.max(1.6, (barW * c.value) / totalExpense));
+    const scale = barW / widths.reduce((a, b) => a + b, 0);
+    let bx = LEFT + 6;
+    cats.forEach((c, i) => {
+      const w = widths[i] * scale;
+      doc.setFillColor(c.color);
+      doc.roundedRect(bx, y + 13.5, w, 2.6, Math.min(1.3, w / 2), 1.3, 'F');
+      bx += w + gap;
+    });
+
+    let ry = y + 20.5;
+    cats.forEach((c, i) => {
+      if (i > 0) rule(LEFT + 6, RIGHT - 6, ry);
+      doc.setFillColor(c.color);
+      doc.circle(LEFT + 7.3, ry + 3.5, 1.15, 'F');
+      text(c.label, LEFT + 11, ry + 4.7, { size: 9.5 });
+      text(formatINR(c.value), RIGHT - 19, ry + 4.7, { size: 9.5, bold: true, align: 'right' });
+      text(`${Math.round((c.value / totalExpense) * 100)}%`, RIGHT - 6, ry + 4.7, { size: 9, color: C.muted, align: 'right' });
+      ry += rowH;
+    });
+    y += cardH + 5;
+  }
+
+  // ---------- Stats ----------
+
+  const spendDays = new Set(expenses.map((t) => new Date(t.date).toDateString())).size;
+  const biggest = expenses.length ? expenses.reduce((a, b) => (Number(a.amount) >= Number(b.amount) ? a : b)) : null;
+  const stats = [
+    ['Transactions', String(list.length)],
+    ['Avg. daily spend', formatINR(Math.round(totalExpense / Math.max(1, spendDays)))],
+    biggest && ['Biggest expense', `${formatINR(biggest.amount)} · ${biggest.description || getCategoryInfo(biggest.category).label}`],
+  ].filter(Boolean);
+  ensure(16);
+  const statW = (WIDTH - 4 * (stats.length - 1)) / stats.length;
+  stats.forEach(([label, value], i) => {
+    const sx = LEFT + i * (statW + 4);
+    card(sx, y, statW, 16, 4);
+    text(label, sx + 4, y + 6.2, { size: 8, color: C.muted });
+    text(fit(value, statW - 8, 10.5, true), sx + 4, y + 12.2, { size: 10.5, bold: true });
+  });
+  y += 16 + 8;
+
+  // ---------- Entries by day ----------
+
+  ensure(8 + DAY_H + ROW_H);
+  text('Transactions', LEFT + 1, y + 3, { size: 13, bold: true });
+  text(`${list.length} ${list.length === 1 ? 'entry' : 'entries'}`, RIGHT - 1, y + 3, { size: 8.5, color: C.muted, align: 'right' });
+  y += 8;
+
+  const dayHeader = (group, top) => {
+    const day = new Date(group.dateKey);
+    let spent = 0;
+    let earned = 0;
+    group.transactions.forEach((t) => {
+      if (t.type === 'income') earned += Number(t.amount);
+      else spent += Number(t.amount);
+    });
+
+    doc.setFillColor(C.sunken);
+    doc.roundedRect(LEFT + 4, top + 2.25, 9.5, 9.5, 3, 3, 'F');
+    text(day.getDate(), LEFT + 8.75, top + 7, { size: 10.5, bold: true, align: 'center' });
+    text(getMonthName(day.getMonth()).slice(0, 3).toUpperCase(), LEFT + 8.75, top + 10.2, { size: 5.5, bold: true, color: C.muted, align: 'center' });
+
+    const count = group.transactions.length;
+    text(day.toLocaleDateString('en-IN', { weekday: 'long' }), LEFT + 17, top + 6.4, { size: 10.5, bold: true });
+    text(`${count} ${count === 1 ? 'entry' : 'entries'}`, LEFT + 17, top + 10.8, { size: 8, color: C.muted });
+
+    if (spent > 0) text(`−${formatINR(spent)}`, RIGHT - 4.5, top + 6.4, { size: 10.5, bold: true, align: 'right' });
+    if (earned > 0) {
+      text(`+${formatINR(earned)}`, RIGHT - 4.5, spent > 0 ? top + 10.8 : top + 6.4, {
+        size: spent > 0 ? 8.5 : 10.5,
+        bold: spent === 0,
+        color: C.income,
+        align: 'right',
+      });
+    }
+  };
+
+  const continuedHeader = (group, top) => {
+    const day = new Date(group.dateKey);
+    const label = day.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
+    text(`${label} · continued`, LEFT + 4.5, top + 5.9, { size: 8.5, color: C.muted });
+  };
+
+  const entryRow = (t, top) => {
+    const key = CATEGORIES[t.category] ? t.category : 'other';
+    const info = getCategoryInfo(key);
+    doc.setFillColor(CAT_TINTS[key][0]);
+    doc.roundedRect(LEFT + 4.5, top + 1.75, 8.5, 8.5, 2.7, 2.7, 'F');
+    if (icons[key]) doc.addImage(icons[key], 'PNG', LEFT + 6.4, top + 3.65, 4.7, 4.7);
+
+    const isExpense = t.type === 'expense';
+    const amount = `${isExpense ? '−' : '+'}${formatINR(t.amount)}`;
+    setFont(9.5, true);
+    const amountW = doc.getTextWidth(amount);
+    text(amount, RIGHT - 4.5, top + 7.1, { size: 9.5, bold: true, color: isExpense ? C.ink : C.income, align: 'right' });
+
+    const textW = RIGHT - 4.5 - amountW - 6 - (LEFT + 17);
+    text(fit(t.description || info.label, textW, 9.5), LEFT + 17, top + 5.4, { size: 9.5 });
+    text(fit(`${info.label} · ${formatTime(t.date)}`, textW, 8), LEFT + 17, top + 9.5, { size: 8, color: C.muted });
+  };
+
+  for (const group of groupByDate(list)) {
+    const rows = group.transactions;
+    let i = 0;
+    let first = true;
+    // A day that doesn't fit carries on in a new card on the next page,
+    // but starts with at least two of its entries rather than leave one behind
+    while (i < rows.length) {
+      const headH = first ? DAY_H : CONTINUED_H;
+      const minRows = first ? Math.min(2, rows.length) : 1;
+      if (y + headH + minRows * ROW_H > BOTTOM) newPage();
+      const count = Math.max(1, Math.min(rows.length - i, Math.floor((BOTTOM - y - headH) / ROW_H)));
+      const height = headH + count * ROW_H;
+      card(LEFT, y, WIDTH, height, 4.5);
+      if (first) dayHeader(group, y);
+      else continuedHeader(group, y);
+      let ry = y + headH;
+      rule(LEFT, RIGHT, ry);
+      for (let k = 0; k < count; k++, i++) {
+        if (k > 0) rule(LEFT + 17, RIGHT, ry);
+        entryRow(rows[i], ry);
+        ry += ROW_H;
+      }
+      y += height + 3.5;
+      first = false;
+    }
+  }
+
+  // ---------- Footer ----------
+
   const pageCount = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(148, 163, 184);
-    doc.text(
-      `Page ${i} of ${pageCount}`,
-      doc.internal.pageSize.width / 2,
-      doc.internal.pageSize.height - 10,
-      { align: 'center' }
-    );
-    doc.text(
-      'Generated by SpendWise',
-      doc.internal.pageSize.width - 14,
-      doc.internal.pageSize.height - 10,
-      { align: 'right' }
-    );
+    text(`SpendWise · ${dateRange.label}`, LEFT, PAGE_H - 9, { size: 7.5, color: C.muted });
+    text(`Page ${i} of ${pageCount}`, RIGHT, PAGE_H - 9, { size: 7.5, color: C.muted, align: 'right' });
   }
 
   doc.save(`SpendWise_Report_${dateRange.label.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
@@ -164,7 +403,7 @@ export async function exportToPDF(transactions, dateRange) {
 export function exportToExcel(transactions, dateRange) {
   const { totalIncome, totalExpense, netBalance } = calculateTotals(transactions);
 
-  const data = transactions
+  const data = [...transactions]
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .map((t) => ({
       Date: formatDate(t.date),

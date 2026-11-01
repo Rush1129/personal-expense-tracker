@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../AppContext';
 import { formatINR, formatDate, getMonthName, calculateTotals, getCategoryInfo } from '../utils';
-import { exportToPDF, exportToExcel } from '../exportUtils';
+import toast from 'react-hot-toast';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
@@ -16,6 +16,17 @@ function formatAxis(v) {
 }
 
 const axisTick = { fontSize: 11, fill: 'var(--color-muted)' };
+
+// The PDF and Excel libraries are large, so they load on the first download
+async function download(kind, transactions, dateRange) {
+  try {
+    const { exportToPDF, exportToExcel } = await import('../exportUtils');
+    await (kind === 'pdf' ? exportToPDF : exportToExcel)(transactions, dateRange);
+  } catch (err) {
+    console.error(`Failed to export ${kind}:`, err);
+    toast.error('Could not create the file. Please try again.');
+  }
+}
 
 function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
@@ -233,7 +244,7 @@ export default function Reports() {
       {/* Export buttons */}
       <div className="grid grid-cols-2 gap-2">
         <button
-          onClick={() => exportToPDF(filtered, dateRange).catch(() => {})}
+          onClick={() => download('pdf', filtered, dateRange)}
           disabled={filtered.length === 0}
           className="h-12 rounded-full border border-ink bg-surface flex items-center justify-center gap-2 text-sm font-semibold press-effect hover:bg-sunken transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
@@ -241,7 +252,7 @@ export default function Reports() {
           Download PDF
         </button>
         <button
-          onClick={() => exportToExcel(filtered, dateRange)}
+          onClick={() => download('excel', filtered, dateRange)}
           disabled={filtered.length === 0}
           className="h-12 rounded-full border border-ink bg-surface flex items-center justify-center gap-2 text-sm font-semibold press-effect hover:bg-sunken transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >

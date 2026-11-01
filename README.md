@@ -4,11 +4,12 @@ A beautiful, offline-first Progressive Web App for tracking your daily income an
 
 ## Features
 
-- **🎙️ Voice entry** — tap **Speak**, say *"Spent 250 on lunch yesterday at 2 pm"*, and the amount, date, time, description and category are filled in for you
+- **🎙️ Voice entry** — tap **Speak**, say *"Spent 250 on lunch yesterday at 2 pm"*, and the amount, date, time, description and category are filled in for you. Say several at once (*"Chai 30 and samosa 20"*) and check them as a list
+- **💬 Bank SMS** — on Android, share a debit or UPI SMS to SpendWise from the Share menu (or paste one into *Type instead*): *"Rs.250 debited … to VPA swiggy@icici"* becomes ₹250 · Swiggy · Food
 - **📝 Add/Edit/Delete** income and expense entries with category tagging (auto-suggested from the description)
 - **📅 Calendar date picker** with optional scrollable time selector
 - **📊 Reports & Charts** — category pie chart, daily bar chart, 6-month trend
-- **📥 Export** clean PDF and Excel reports for any date range
+- **📥 Export** PDF reports styled like the app, and Excel sheets, for any date range
 - **🌙 Dark Mode** with automatic system preference detection
 - **📱 PWA** — installable on your phone, works offline
 - **💾 Backup/Restore** — export all data as JSON, import it back anytime
@@ -130,6 +131,8 @@ Everything is free and needs no API keys.
 |------|-----|
 | Speech → text | Browser's built-in speech recognition (`en-IN`). If it's missing or fails (Firefox, Brave, some iOS PWAs), falls back to **Whisper tiny** running on-device (~41 MB, downloaded once). Choose *On-device only* in Settings to keep audio on the phone. |
 | Text → amount, date, time, type | Rule-based parser in [`src/voice/parseTransaction.js`](src/voice/parseTransaction.js): handles "2,500", "two hundred and fifty", "1.5k", "2 lakh", "yesterday", "last Friday", "on the 5th", "25/09", "at 7:30 pm", "this morning", income words like "received"/"salary", etc. |
+| Several in one sentence | `parseTransactions` splits on "and", "&", commas and full stops when each part has its own amount ("bread and butter 60" stays one entry). A date or income word said once applies to every part. |
+| Bank / UPI SMS | [`src/voice/parseSms.js`](src/voice/parseSms.js) reads the amount, debit or credit, date and payee from common Indian bank formats (SBI, HDFC, ICICI, Axis, Kotak, card spends). Shared SMS arrive through the manifest's `share_target` (Android only; iPhone doesn't support it). |
 | Description → category | Keyword rules tuned for Indian merchants (Swiggy, Ola, DMart, Jio…) in [`src/voice/categoryRules.js`](src/voice/categoryRules.js). When no keyword matches, an on-device **MiniLM** sentence-embedding model (~23 MB) picks the closest category (e.g. "medicines" → Bills, "haircut" → Shopping). |
 
 The models run in a Web Worker via [transformers.js](https://huggingface.co/docs/transformers.js), loaded from the jsDelivr CDN on first use, so they add nothing to the app bundle. To add a category or improve detection, edit `CATEGORIES` in `utils.js` and the matching keywords/example phrases in `categoryRules.js`.
@@ -142,7 +145,7 @@ The models run in a Web Worker via [transformers.js](https://huggingface.co/docs
 | Styling | Tailwind CSS v4 |
 | Local DB | IndexedDB via Dexie.js |
 | Cloud DB | Supabase (PostgreSQL) |
-| PDF Export | jsPDF + jspdf-autotable |
+| PDF Export | jsPDF |
 | Excel Export | SheetJS (xlsx) |
 | Charts | Recharts |
 | Icons | Lucide React |
@@ -168,6 +171,7 @@ The models run in a Web Worker via [transformers.js](https://huggingface.co/docs
 - **Supabase configured?** → Cloud is source of truth, IndexedDB is cache
 - **Supabase not configured?** → IndexedDB only (works great for single device)
 - **Network error?** → Graceful fallback to IndexedDB
+- **Opening the app** shows what's saved on the device right away, then refreshes from Supabase in the background. Charts, PDF and Excel code load only when needed.
 
 ## Project Structure
 
@@ -182,7 +186,8 @@ src/
 ├── exportUtils.js     # PDF & Excel export
 ├── index.css          # Tailwind v4 + animations
 ├── voice/
-│   ├── parseTransaction.js    # Sentence → amount/date/time/type/description
+│   ├── parseTransaction.js    # Sentence → amount/date/time/type/description (one or several)
+│   ├── parseSms.js            # Bank / UPI SMS → the same fields
 │   ├── categoryRules.js       # Category keywords + model example phrases
 │   ├── embeddingClassifier.js # Nearest-category matching on embeddings
 │   ├── useVoiceInput.js       # Mic capture (browser speech / on-device)
@@ -196,6 +201,7 @@ src/
     ├── DatePicker.jsx     # Custom calendar date picker
     ├── TimePicker.jsx     # Scrollable wheel time picker (optional)
     ├── Reports.jsx        # Charts, exports, date selector
+    ├── Logo.jsx           # The ₹ mark (same outline as the app icons)
     └── Settings.jsx       # Dark mode, backup, app info
 ```
 

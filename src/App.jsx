@@ -1,16 +1,41 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react';
 import { useApp } from './AppContext';
 import SummaryCard from './components/SummaryCard';
 import CategorySplit from './components/CategorySplit';
 import EntryList from './components/EntryList';
-import EntryForm from './components/EntryForm';
-import VoiceEntry from './components/VoiceEntry';
-import Reports from './components/Reports';
-import Settings from './components/Settings';
+import Logo from './components/Logo';
 import { calculateTotals, getMonthName } from './utils';
 import { isSupabaseConfigured } from './supabaseClient';
 import QuickAdd from './components/QuickAdd';
 import { House, ChartColumn, SlidersHorizontal, SquarePlus, CloudCheck, CloudOff, Mic } from 'lucide-react';
+
+// Not needed for the first screen, so they load separately (charts, PDF and Excel
+// export are the bulk of the code). prefetchScreens fetches them once the app is idle.
+const loadEntryForm = () => import('./components/EntryForm');
+const loadVoiceEntry = () => import('./components/VoiceEntry');
+const loadReports = () => import('./components/Reports');
+const loadSettings = () => import('./components/Settings');
+const EntryForm = lazy(loadEntryForm);
+const VoiceEntry = lazy(loadVoiceEntry);
+const Reports = lazy(loadReports);
+const Settings = lazy(loadSettings);
+
+function prefetchScreens() {
+  const run = () => [loadVoiceEntry, loadEntryForm, loadReports, loadSettings].forEach((load) => load().catch(() => {}));
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 3000 });
+  else setTimeout(run, 1500);
+}
+
+// Text shared into the app from Android's Share menu (share_target in vite.config.js).
+// Read once at startup; the query string is removed so a reload doesn't add it again.
+function takeSharedText() {
+  const params = new URLSearchParams(window.location.search);
+  if (!['title', 'text', 'url'].some((key) => params.has(key))) return '';
+  window.history.replaceState(window.history.state, '', window.location.pathname);
+  const text = [params.get('text'), params.get('url')].filter(Boolean).join(' ').trim();
+  return text || (params.get('title') || '').trim();
+}
+const sharedOnLaunch = takeSharedText();
 
 function greeting(hour) {
   if (hour < 12) return 'Good morning';
@@ -22,7 +47,8 @@ export default function App() {
   const { transactions, loading } = useApp();
   const [activeTab, setActiveTab] = useState('home');
   const [showForm, setShowForm] = useState(false);
-  const [showVoice, setShowVoice] = useState(false);
+  const [showVoice, setShowVoice] = useState(!!sharedOnLaunch);
+  const [sharedText, setSharedText] = useState(sharedOnLaunch);
   const [editTx, setEditTx] = useState(null);
   const [prefill, setPrefill] = useState(null);
 
@@ -71,9 +97,15 @@ export default function App() {
     setShowForm(true);
   };
 
+  // Shared text is used once, by the voice sheet it opened
+  const closeVoice = () => {
+    setShowVoice(false);
+    setSharedText('');
+  };
+
   // Voice entry → full form, keeping what was parsed
   const handleVoiceDetails = (values) => {
-    setShowVoice(false);
+    closeVoice();
     setEditTx(null);
     setPrefill(values);
     setShowForm(true);
@@ -86,33 +118,49 @@ export default function App() {
   const closeSheetsRef = useRef(null);
   useEffect(() => {
     closeSheetsRef.current = () => {
-      setShowVoice(false);
+      closeVoice();
       handleCloseForm();
     };
   });
 
+  // Dropping the entry waits a tick: if React re-runs this effect straight away
+  // (StrictMode does on mount, e.g. a sheet opened by a share), the entry is reused
+  // instead of a late Back closing the new sheet
+  const dropEntryRef = useRef(null);
   useEffect(() => {
     if (!sheetOpen) return;
     const id = `sheet-${Date.now()}`;
-    window.history.pushState({ spendwiseSheet: id }, '');
+    if (dropEntryRef.current) {
+      clearTimeout(dropEntryRef.current);
+      dropEntryRef.current = null;
+      window.history.replaceState({ spendwiseSheet: id }, '');
+    } else {
+      window.history.pushState({ spendwiseSheet: id }, '');
+    }
     const onPop = () => closeSheetsRef.current();
     window.addEventListener('popstate', onPop);
     return () => {
       window.removeEventListener('popstate', onPop);
       // Closed from inside the app: drop the entry we added
-      if (window.history.state?.spendwiseSheet === id) window.history.back();
+      if (window.history.state?.spendwiseSheet === id) {
+        dropEntryRef.current = setTimeout(() => {
+          dropEntryRef.current = null;
+          window.history.back();
+        }, 0);
+      }
     };
   }, [sheetOpen]);
 
+  useEffect(() => {
+    if (!loading) prefetchScreens();
+  }, [loading]);
+
+  // Same as the splash in index.html, so the hand-over doesn't flicker
   if (loading) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-bg">
-        <div className="text-center fade-in">
-          <div className="w-16 h-16 bg-accent rounded-[20px] flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl font-bold text-on-accent">₹</span>
-          </div>
-          <p className="text-sm font-semibold text-muted">Loading...</p>
-        </div>
+      <div role="status" aria-label="Loading SpendWise" className="min-h-dvh flex flex-col items-center justify-center gap-4 bg-bg text-[15px] leading-none font-semibold text-muted">
+        <Logo size={64} />
+        SpendWise
       </div>
     );
   }
@@ -186,8 +234,10 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'reports' && <Reports />}
-        {activeTab === 'settings' && <Settings />}
+        <Suspense fallback={null}>
+          {activeTab === 'reports' && <Reports />}
+          {activeTab === 'settings' && <Settings />}
+        </Suspense>
       </div>
 
       {/* Bottom dock: tabs, voice (primary) and manual add */}
@@ -227,14 +277,18 @@ export default function App() {
       </nav>
 
       {/* Entry form modal */}
-      {showForm && (
-        <EntryForm editTransaction={editTx} prefill={prefill} onClose={handleCloseForm} />
-      )}
+      <Suspense fallback={null}>
+        {showForm && (
+          <EntryForm editTransaction={editTx} prefill={prefill} onClose={handleCloseForm} />
+        )}
+      </Suspense>
 
       {/* Voice entry modal */}
-      {showVoice && (
-        <VoiceEntry onClose={() => setShowVoice(false)} onEditDetails={handleVoiceDetails} />
-      )}
+      <Suspense fallback={null}>
+        {showVoice && (
+          <VoiceEntry onClose={closeVoice} onEditDetails={handleVoiceDetails} initialText={sharedText} />
+        )}
+      </Suspense>
     </div>
   );
 }
