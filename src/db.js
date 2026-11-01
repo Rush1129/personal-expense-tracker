@@ -51,11 +51,17 @@ function localTransactions() {
 
 const pendingRows = () => db.transactions.filter((t) => !!t.pending);
 
+// Ids changed on this device while a cloud download is in flight. That download
+// may be older than the change, so the cache refresh keeps the local version.
+let touchedDuringRefresh = null;
+const touch = (...ids) => ids.forEach((id) => touchedDuringRefresh?.add(id));
+
 async function pushPending(row) {
   if (row.pending === 'delete') {
     const { error } = await supabase.from('transactions').delete().eq('id', row.id);
     if (error) throw error;
     await db.transactions.delete(row.id);
+    touch(row.id);
     return;
   }
 
@@ -72,6 +78,7 @@ async function pushPending(row) {
     await db.transactions.delete(row.id);
     await db.transactions.put(data);
   });
+  touch(row.id, data.id);
 }
 
 let syncing = null;
@@ -102,49 +109,70 @@ export async function hasPendingChanges() {
   return (await pendingRows().count()) > 0;
 }
 
-export async function getAllTransactions() {
-  if (isSupabaseConfigured) {
-    try {
-      await syncPending();
+// What's saved on this device, without waiting for the network
+export function getCachedTransactions() {
+  return localTransactions();
+}
 
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .order('date', { ascending: false });
-      if (error) throw error;
+let refreshing = null;
 
-      // If Supabase is empty but IndexedDB has existing local data,
-      // automatically sync local data to Supabase so it's not lost
-      if (data.length === 0) {
-        const localData = await localTransactions();
-        if (localData.length > 0) {
-          const toInsert = localData.map(cloudFields);
-          const { data: synced, error: syncErr } = await supabase
-            .from('transactions')
-            .insert(toInsert)
-            .select()
-            .order('date', { ascending: false });
-          if (!syncErr && synced && synced.length > 0) {
-            await db.transactions.clear();
-            await db.transactions.bulkAdd(synced.map(t => ({ ...t })));
-            return synced;
-          }
+// Uploads pending changes, then refreshes the cache from the cloud. Concurrent
+// calls share one download.
+export function getAllTransactions() {
+  if (!isSupabaseConfigured) return localTransactions();
+  refreshing ??= refreshFromCloud().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+async function refreshFromCloud() {
+  const touched = new Set();
+  touchedDuringRefresh = touched;
+  try {
+    await syncPending();
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .order('date', { ascending: false });
+    if (error) throw error;
+
+    // If Supabase is empty but IndexedDB has existing local data,
+    // automatically sync local data to Supabase so it's not lost
+    if (data.length === 0) {
+      const localData = await localTransactions();
+      if (localData.length > 0) {
+        const toInsert = localData.map(cloudFields);
+        const { data: synced, error: syncErr } = await supabase
+          .from('transactions')
+          .insert(toInsert)
+          .select()
+          .order('date', { ascending: false });
+        if (!syncErr && synced && synced.length > 0) {
+          await db.transactions.clear();
+          await db.transactions.bulkAdd(synced.map(t => ({ ...t })));
+          return synced;
         }
       }
-
-      // Refresh the IndexedDB cache, keeping changes that haven't uploaded yet
-      await db.transaction('rw', db.transactions, async () => {
-        const pending = await pendingRows().toArray();
-        await db.transactions.clear();
-        await db.transactions.bulkPut([...data, ...pending]);
-      });
-      return localTransactions();
-    } catch (err) {
-      console.warn('Supabase fetch failed, falling back to IndexedDB:', err.message);
-      return localTransactions();
     }
+
+    // Refresh the IndexedDB cache, keeping changes that haven't uploaded yet
+    // and rows changed on this device while the download was running
+    await db.transaction('rw', db.transactions, async () => {
+      const keep = await db.transactions.filter((t) => !!t.pending || touched.has(t.id)).toArray();
+      const keepIds = new Set(keep.map((t) => t.id));
+      const fresh = data.filter((t) => !keepIds.has(t.id) && !touched.has(t.id));
+      await db.transactions.clear();
+      await db.transactions.bulkPut([...fresh, ...keep]);
+    });
+    return localTransactions();
+  } catch (err) {
+    console.warn('Supabase fetch failed, falling back to IndexedDB:', err.message);
+    return localTransactions();
+  } finally {
+    touchedDuringRefresh = null;
   }
-  return localTransactions();
 }
 
 export async function syncLocalToSupabase() {
@@ -185,6 +213,7 @@ export async function addTransaction(data) {
 
       // Also cache locally
       await db.transactions.put({ ...inserted });
+      touch(inserted.id);
       return inserted;
     } catch (err) {
       console.warn('Supabase insert failed, keeping it on this device to upload later:', err.message);
@@ -216,6 +245,7 @@ export async function updateTransaction(id, data) {
 
       // Update local cache (replacing the row also clears a pending mark)
       await db.transactions.put({ ...updated });
+      touch(id);
       return updated;
     } catch (err) {
       console.warn('Supabase update failed, keeping it on this device to upload later:', err.message);
@@ -228,6 +258,7 @@ export async function updateTransaction(id, data) {
   if (isSupabaseConfigured) updates.pending = existing.pending === 'add' ? 'add' : 'update';
 
   await db.transactions.update(id, updates);
+  touch(id);
   return db.transactions.get(id);
 }
 
@@ -249,6 +280,7 @@ export async function deleteTransaction(id) {
   }
 
   await db.transactions.delete(id);
+  touch(id);
   return transaction; // return deleted entry for undo
 }
 
@@ -263,6 +295,7 @@ export async function restoreTransaction(transaction) {
       if (error) throw error;
 
       await db.transactions.put(row);
+      touch(row.id);
       return;
     } catch (err) {
       console.warn('Supabase restore failed, restoring it in the cloud later:', err.message);

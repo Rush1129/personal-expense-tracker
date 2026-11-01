@@ -28,7 +28,8 @@ export default defineConfig(({ mode }) => ({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'mask-icon.svg'],
+      // Icons come from scripts/generate-icons.cjs
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         id: '/',
         name: 'SpendWise — Personal Expense Tracker',
@@ -41,6 +42,13 @@ export default defineConfig(({ mode }) => ({
         scope: '/',
         start_url: '/',
         categories: ['finance', 'utilities'],
+        // Android lists the installed app in the Share menu, so a bank SMS can be
+        // shared straight in; it arrives as /?text=… (see takeSharedText in App.jsx)
+        share_target: {
+          action: '/',
+          method: 'GET',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -53,10 +61,10 @@ export default defineConfig(({ mode }) => ({
             type: 'image/png',
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'maskable-icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable',
+            purpose: 'maskable',
           },
         ],
       },

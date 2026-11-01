@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   getAllTransactions,
+  getCachedTransactions,
   addTransaction as dbAdd,
   updateTransaction as dbUpdate,
   deleteTransaction as dbDelete,
@@ -38,7 +39,7 @@ export function AppProvider({ children }) {
     setVoiceSettings((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  // Load transactions from IndexedDB on mount
+  // Full reload, used after a backup restore or a manual sync
   const loadTransactions = useCallback(async () => {
     setLoading(true);
     try {
@@ -51,9 +52,31 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  // Startup: show what's saved on this device straight away, then swap in the
+  // cloud copy when it arrives. Only a device with nothing saved waits for the cloud.
   useEffect(() => {
-    loadTransactions();
-  }, [loadTransactions]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const cached = await getCachedTransactions();
+        if (cancelled) return;
+        if (cached.length > 0 || !isSupabaseConfigured) {
+          setTransactions(cached);
+          setLoading(false);
+          if (!isSupabaseConfigured) return;
+        }
+        const fresh = await getAllTransactions();
+        if (!cancelled) setTransactions(fresh);
+      } catch (err) {
+        console.error('Failed to load transactions:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Changes saved without a connection upload when it comes back or the app is reopened
   useEffect(() => {

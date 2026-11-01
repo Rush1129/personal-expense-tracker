@@ -1,23 +1,5 @@
-import {
-  Utensils, Car, ShoppingCart, ReceiptText, ShoppingBag, Clapperboard,
-  Wallet, TrendingUp, Laptop, Briefcase, Gift, Ellipsis,
-} from 'lucide-react';
 import { CATEGORIES } from '../utils';
-
-const ICONS = {
-  food: Utensils,
-  transport: Car,
-  groceries: ShoppingCart,
-  bills: ReceiptText,
-  shopping: ShoppingBag,
-  entertainment: Clapperboard,
-  pocketmoney: Wallet,
-  investment: TrendingUp,
-  freelance: Laptop,
-  salary: Briefcase,
-  gift: Gift,
-  other: Ellipsis,
-};
+import { CATEGORY_ICONS as ICONS } from './categoryIcons';
 
 // Tinted rounded tile with the category's line icon; colors live in index.css (.cat-*)
 export default function CategoryIcon({ category, size = 44, className = '' }) {

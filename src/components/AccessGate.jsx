@@ -1,6 +1,7 @@
 import { useState, useLayoutEffect } from 'react';
 import { ArrowRight, Eye, EyeOff, LockKeyhole } from 'lucide-react';
 import { isDeviceUnlocked, tryAccessCode } from '../access';
+import Logo from './Logo';
 
 // Shows the code screen until this device has entered a valid access code
 export default function AccessGate({ children }) {
@@ -43,9 +44,7 @@ function CodeScreen({ onUnlock }) {
   return (
     <div className="min-h-dvh bg-bg text-ink flex flex-col px-5 safe-top">
       <main className="flex-1 w-full max-w-sm mx-auto flex flex-col justify-center py-12 slide-up">
-        <span className="w-16 h-16 rounded-[20px] bg-accent text-on-accent flex items-center justify-center text-[28px] font-bold">
-          ₹
-        </span>
+        <Logo size={64} />
         <h1 className="mt-6 text-[28px] font-bold tracking-[-0.03em]">SpendWise</h1>
         <p className="mt-1.5 text-[15px] text-muted">Enter your access code to continue.</p>
 
