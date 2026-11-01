@@ -1,4 +1,5 @@
 import Dexie from 'dexie';
+import { v4 as uuidv4 } from 'uuid';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 // ==========================================
@@ -16,11 +17,96 @@ db.version(1).stores({
 // When Supabase is configured, it acts as the
 // source of truth, with IndexedDB as the cache.
 // When not configured, IndexedDB is the only store.
+//
+// A change that can't reach Supabase stays in IndexedDB
+// marked `pending: 'add' | 'update' | 'delete'` and is
+// uploaded by syncPending(), so refreshing the cache from
+// the cloud never wipes it. Entries added that way get a
+// 'local-…' id until Supabase gives them a real one.
 // ==========================================
+
+const isLocalId = (id) => typeof id === 'string' && id.startsWith('local-');
+
+function withoutPending(row) {
+  const copy = { ...row };
+  delete copy.pending;
+  return copy;
+}
+
+// A row to insert into Supabase, which assigns the id
+function cloudFields(row) {
+  const fields = withoutPending(row);
+  delete fields.id;
+  return fields;
+}
+
+// Cached rows for the UI: newest first, pending deletes hidden
+function localTransactions() {
+  return db.transactions
+    .orderBy('date')
+    .reverse()
+    .filter((t) => t.pending !== 'delete')
+    .toArray();
+}
+
+const pendingRows = () => db.transactions.filter((t) => !!t.pending);
+
+async function pushPending(row) {
+  if (row.pending === 'delete') {
+    const { error } = await supabase.from('transactions').delete().eq('id', row.id);
+    if (error) throw error;
+    await db.transactions.delete(row.id);
+    return;
+  }
+
+  // An 'add' gets a new cloud id; an 'update' is written back under its own id
+  // (re-created if it was deleted elsewhere, so the offline edit isn't lost)
+  const query =
+    row.pending === 'add'
+      ? supabase.from('transactions').insert([cloudFields(row)])
+      : supabase.from('transactions').upsert([withoutPending(row)]);
+  const { data, error } = await query.select().single();
+  if (error) throw error;
+
+  await db.transaction('rw', db.transactions, async () => {
+    await db.transactions.delete(row.id);
+    await db.transactions.put(data);
+  });
+}
+
+let syncing = null;
+
+// Uploads pending changes and returns how many went up. Ones that still fail
+// stay pending for the next try. Concurrent calls share one run, so nothing is
+// uploaded twice.
+export function syncPending() {
+  if (!isSupabaseConfigured) return Promise.resolve(0);
+  syncing ??= (async () => {
+    let synced = 0;
+    for (const row of await pendingRows().toArray()) {
+      try {
+        await pushPending(row);
+        synced++;
+      } catch (err) {
+        console.warn('Offline change not uploaded yet:', err.message);
+      }
+    }
+    return synced;
+  })().finally(() => {
+    syncing = null;
+  });
+  return syncing;
+}
+
+export async function hasPendingChanges() {
+  return (await pendingRows().count()) > 0;
+}
 
 export async function getAllTransactions() {
   if (isSupabaseConfigured) {
     try {
+      await syncPending();
+
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
@@ -30,10 +116,9 @@ export async function getAllTransactions() {
       // If Supabase is empty but IndexedDB has existing local data,
       // automatically sync local data to Supabase so it's not lost
       if (data.length === 0) {
-        const localCount = await db.transactions.count();
-        if (localCount > 0) {
-          const localData = await db.transactions.toArray();
-          const toInsert = localData.map(({ id, ...rest }) => rest);
+        const localData = await localTransactions();
+        if (localData.length > 0) {
+          const toInsert = localData.map(cloudFields);
           const { data: synced, error: syncErr } = await supabase
             .from('transactions')
             .insert(toInsert)
@@ -47,28 +132,29 @@ export async function getAllTransactions() {
         }
       }
 
-      // Sync to IndexedDB cache
-      await db.transactions.clear();
-      if (data.length > 0) {
-        await db.transactions.bulkAdd(data.map(t => ({ ...t })));
-      }
-      return data;
+      // Refresh the IndexedDB cache, keeping changes that haven't uploaded yet
+      await db.transaction('rw', db.transactions, async () => {
+        const pending = await pendingRows().toArray();
+        await db.transactions.clear();
+        await db.transactions.bulkPut([...data, ...pending]);
+      });
+      return localTransactions();
     } catch (err) {
       console.warn('Supabase fetch failed, falling back to IndexedDB:', err.message);
-      return db.transactions.orderBy('date').reverse().toArray();
+      return localTransactions();
     }
   }
-  return db.transactions.orderBy('date').reverse().toArray();
+  return localTransactions();
 }
 
 export async function syncLocalToSupabase() {
   if (!isSupabaseConfigured || !supabase) {
     throw new Error('Supabase is not configured in .env');
   }
-  const local = await db.transactions.toArray();
+  const local = await localTransactions();
   if (local.length === 0) return 0;
 
-  const toInsert = local.map(({ id, ...rest }) => rest);
+  const toInsert = local.map(cloudFields);
   const { data, error } = await supabase.from('transactions').insert(toInsert).select();
   if (error) throw error;
 
@@ -98,14 +184,18 @@ export async function addTransaction(data) {
       if (error) throw error;
 
       // Also cache locally
-      await db.transactions.add({ ...inserted });
+      await db.transactions.put({ ...inserted });
       return inserted;
     } catch (err) {
-      console.warn('Supabase insert failed, saving to IndexedDB only:', err.message);
+      console.warn('Supabase insert failed, keeping it on this device to upload later:', err.message);
     }
+
+    const pendingTx = { ...transaction, id: `local-${uuidv4()}`, pending: 'add' };
+    await db.transactions.add(pendingTx);
+    return pendingTx;
   }
 
-  // Fallback / offline-only
+  // Offline-only
   const id = await db.transactions.add(transaction);
   return { ...transaction, id };
 }
@@ -114,7 +204,7 @@ export async function updateTransaction(id, data) {
   const now = new Date().toISOString();
   const updates = { ...data, updatedAt: now };
 
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured && !isLocalId(id)) {
     try {
       const { data: updated, error } = await supabase
         .from('transactions')
@@ -124,13 +214,18 @@ export async function updateTransaction(id, data) {
         .single();
       if (error) throw error;
 
-      // Update local cache
-      await db.transactions.update(id, { ...updated });
+      // Update local cache (replacing the row also clears a pending mark)
+      await db.transactions.put({ ...updated });
       return updated;
     } catch (err) {
-      console.warn('Supabase update failed, updating IndexedDB only:', err.message);
+      console.warn('Supabase update failed, keeping it on this device to upload later:', err.message);
     }
   }
+
+  const existing = await db.transactions.get(id);
+  if (!existing) throw new Error('Entry not found');
+  // An entry that never reached the cloud is still an 'add'
+  if (isSupabaseConfigured) updates.pending = existing.pending === 'add' ? 'add' : 'update';
 
   await db.transactions.update(id, updates);
   return db.transactions.get(id);
@@ -139,7 +234,7 @@ export async function updateTransaction(id, data) {
 export async function deleteTransaction(id) {
   const transaction = await db.transactions.get(id);
 
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured && !isLocalId(id)) {
     try {
       const { error } = await supabase
         .from('transactions')
@@ -147,7 +242,9 @@ export async function deleteTransaction(id) {
         .eq('id', id);
       if (error) throw error;
     } catch (err) {
-      console.warn('Supabase delete failed, deleting from IndexedDB only:', err.message);
+      console.warn('Supabase delete failed, deleting it from the cloud later:', err.message);
+      await db.transactions.update(id, { pending: 'delete' });
+      return transaction;
     }
   }
 
@@ -156,18 +253,27 @@ export async function deleteTransaction(id) {
 }
 
 export async function restoreTransaction(transaction) {
-  if (isSupabaseConfigured) {
+  if (isSupabaseConfigured && !isLocalId(transaction.id)) {
     try {
+      const row = withoutPending(transaction);
+      // Upsert: if the delete never reached the cloud, the row is still there
       const { error } = await supabase
         .from('transactions')
-        .insert([transaction]);
+        .upsert([row]);
       if (error) throw error;
+
+      await db.transactions.put(row);
+      return;
     } catch (err) {
-      console.warn('Supabase restore failed, restoring in IndexedDB only:', err.message);
+      console.warn('Supabase restore failed, restoring it in the cloud later:', err.message);
     }
   }
 
-  await db.transactions.add(transaction);
+  if (isSupabaseConfigured) {
+    await db.transactions.put({ ...transaction, pending: isLocalId(transaction.id) ? 'add' : 'update' });
+  } else {
+    await db.transactions.put(transaction);
+  }
 }
 
 export async function getTransactionsByDateRange(startDate, endDate) {
@@ -189,6 +295,7 @@ export async function getTransactionsByDateRange(startDate, endDate) {
   return db.transactions
     .where('date')
     .between(startDate, endDate, true, true)
+    .filter((t) => t.pending !== 'delete')
     .reverse()
     .sortBy('date');
 }
@@ -207,6 +314,7 @@ export async function exportAllData() {
   let transactions;
   if (isSupabaseConfigured) {
     try {
+      await syncPending();
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
@@ -215,7 +323,7 @@ export async function exportAllData() {
       transactions = data;
     } catch (err) {
       console.warn('Supabase export failed, exporting from IndexedDB:', err.message);
-      transactions = await db.transactions.toArray();
+      transactions = (await localTransactions()).map(withoutPending);
     }
   } else {
     transactions = await db.transactions.toArray();
@@ -251,7 +359,7 @@ export async function importAllData(jsonString) {
       for (let i = 0; i < data.transactions.length; i += 100) {
         const batch = data.transactions.slice(i, i + 100);
         // Remove local IDs that are auto-increment integers
-        const cleaned = batch.map(({ id, ...rest }) => rest);
+        const cleaned = batch.map(cloudFields);
         await supabase.from('transactions').insert(cleaned);
       }
     } catch (err) {

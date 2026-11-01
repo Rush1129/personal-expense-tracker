@@ -5,7 +5,9 @@ import {
   updateTransaction as dbUpdate,
   deleteTransaction as dbDelete,
   restoreTransaction as dbRestore,
+  hasPendingChanges,
 } from './db';
+import { isSupabaseConfigured } from './supabaseClient';
 
 const AppContext = createContext(null);
 
@@ -52,6 +54,25 @@ export function AppProvider({ children }) {
   useEffect(() => {
     loadTransactions();
   }, [loadTransactions]);
+
+  // Changes saved without a connection upload when it comes back or the app is reopened
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const retry = async () => {
+      if (document.visibilityState === 'hidden' || !(await hasPendingChanges())) return;
+      try {
+        setTransactions(await getAllTransactions());
+      } catch (err) {
+        console.warn('Could not upload offline changes:', err);
+      }
+    };
+    window.addEventListener('online', retry);
+    document.addEventListener('visibilitychange', retry);
+    return () => {
+      window.removeEventListener('online', retry);
+      document.removeEventListener('visibilitychange', retry);
+    };
+  }, []);
 
   // Dark mode effect
   useEffect(() => {

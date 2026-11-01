@@ -9,7 +9,8 @@ import Reports from './components/Reports';
 import Settings from './components/Settings';
 import { calculateTotals, getMonthName } from './utils';
 import { isSupabaseConfigured } from './supabaseClient';
-import { House, ChartColumn, SlidersHorizontal, SquarePlus, CloudCheck, Mic } from 'lucide-react';
+import QuickAdd from './components/QuickAdd';
+import { House, ChartColumn, SlidersHorizontal, SquarePlus, CloudCheck, CloudOff, Mic } from 'lucide-react';
 
 function greeting(hour) {
   if (hour < 12) return 'Good morning';
@@ -51,6 +52,7 @@ export default function App() {
         .reduce((sum, t) => sum + Number(t.amount), 0)
     : 0;
   const period = `${getMonthName(view.month)} ${view.year}`;
+  const unsynced = transactions.filter((t) => t.pending).length;
 
   const handleEdit = (tx) => {
     setEditTx(tx);
@@ -135,10 +137,20 @@ export default function App() {
           )}
 
           {activeTab === 'home' && isSupabaseConfigured && (
-            <span className="card shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold text-income">
-              <CloudCheck className="w-3.5 h-3.5" strokeWidth={2.2} />
-              Synced
-            </span>
+            unsynced > 0 ? (
+              <span
+                className="card shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold text-muted"
+                title="Saved on this device. Uploads when you're back online."
+              >
+                <CloudOff className="w-3.5 h-3.5" strokeWidth={2.2} />
+                {unsynced} not synced
+              </span>
+            ) : (
+              <span className="card shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold text-income">
+                <CloudCheck className="w-3.5 h-3.5" strokeWidth={2.2} />
+                Synced
+              </span>
+            )
           )}
         </header>
 
@@ -155,6 +167,7 @@ export default function App() {
               onNext={() => shiftMonth(1)}
               onThisMonth={goToThisMonth}
             />
+            {isThisMonth && <QuickAdd />}
             <CategorySplit transactions={monthTx} onOpenReports={() => setActiveTab('reports')} />
             <section aria-label="Transactions" className="mt-1.5">
               <div className="flex items-baseline justify-between mb-3 px-1">
