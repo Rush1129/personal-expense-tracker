@@ -7,10 +7,22 @@ import {
   deleteTransaction as dbDelete,
   restoreTransaction as dbRestore,
   hasPendingChanges,
+  getSyncError,
 } from './db';
 import { isSupabaseConfigured } from './supabaseClient';
 
 const AppContext = createContext(null);
+
+// Why entries are still waiting to upload, in plain words
+function syncProblem(message) {
+  if (!navigator.onLine) return "You're offline. Entries will upload when you're back online.";
+  // A failed request, not an answer from the database: the project is paused,
+  // deleted or blocked on this network
+  if (!message || /fetch|load failed|network/i.test(message)) {
+    return "Can't reach the cloud database. Entries are saved on this device and will upload once it's reachable.";
+  }
+  return `Cloud database error: ${message}`;
+}
 
 export function AppProvider({ children }) {
   const [transactions, setTransactions] = useState([]);
@@ -50,6 +62,14 @@ export function AppProvider({ children }) {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  // Uploads changes saved on this device now. Resolves to why some are still
+  // waiting, or null once everything is in the cloud.
+  const syncNow = useCallback(async () => {
+    setTransactions(await getAllTransactions());
+    if (!(await hasPendingChanges())) return null;
+    return syncProblem(getSyncError());
   }, []);
 
   // Startup: show what's saved on this device straight away, then swap in the
@@ -146,6 +166,7 @@ export function AppProvider({ children }) {
     restoreTransaction,
     toggleDarkMode,
     refreshTransactions: loadTransactions,
+    syncNow,
     voiceSettings,
     updateVoiceSettings,
   };
