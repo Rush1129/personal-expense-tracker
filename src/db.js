@@ -83,18 +83,24 @@ async function pushPending(row) {
 
 let syncing = null;
 
+// Why the latest upload or cloud download failed, or null if it didn't
+let lastSyncError = null;
+export const getSyncError = () => lastSyncError;
+
 // Uploads pending changes and returns how many went up. Ones that still fail
 // stay pending for the next try. Concurrent calls share one run, so nothing is
 // uploaded twice.
 export function syncPending() {
   if (!isSupabaseConfigured) return Promise.resolve(0);
   syncing ??= (async () => {
+    lastSyncError = null;
     let synced = 0;
     for (const row of await pendingRows().toArray()) {
       try {
         await pushPending(row);
         synced++;
       } catch (err) {
+        lastSyncError = err.message;
         console.warn('Offline change not uploaded yet:', err.message);
       }
     }
@@ -116,8 +122,8 @@ export function getCachedTransactions() {
 
 let refreshing = null;
 
-// Uploads pending changes, then refreshes the cache from the cloud. Concurrent
-// calls share one download.
+// Downloads from the cloud, uploads pending changes, then refreshes the cache.
+// Concurrent calls share one run.
 export function getAllTransactions() {
   if (!isSupabaseConfigured) return localTransactions();
   refreshing ??= refreshFromCloud().finally(() => {
@@ -129,33 +135,22 @@ export function getAllTransactions() {
 async function refreshFromCloud() {
   const touched = new Set();
   touchedDuringRefresh = touched;
+  lastSyncError = null;
   try {
-    await syncPending();
-
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
       .order('date', { ascending: false });
     if (error) throw error;
 
-    // If Supabase is empty but IndexedDB has existing local data,
-    // automatically sync local data to Supabase so it's not lost
-    if (data.length === 0) {
-      const localData = await localTransactions();
-      if (localData.length > 0) {
-        const toInsert = localData.map(cloudFields);
-        const { data: synced, error: syncErr } = await supabase
-          .from('transactions')
-          .insert(toInsert)
-          .select()
-          .order('date', { ascending: false });
-        if (!syncErr && synced && synced.length > 0) {
-          await db.transactions.clear();
-          await db.transactions.bulkAdd(synced.map(t => ({ ...t })));
-          return synced;
-        }
-      }
-    }
+    // An empty cloud (a new Supabase project, say) gets everything saved on
+    // this device. Checked before uploading pending changes: once those are up
+    // the cloud isn't empty, and the refresh below would drop the rest.
+    if (data.length === 0) return await seedEmptyCloud();
+
+    // Rows these uploads change are marked touched, so the download above
+    // (taken before them) doesn't overwrite them below
+    await syncPending();
 
     // Refresh the IndexedDB cache, keeping changes that haven't uploaded yet
     // and rows changed on this device while the download was running
@@ -168,6 +163,7 @@ async function refreshFromCloud() {
     });
     return localTransactions();
   } catch (err) {
+    lastSyncError = err.message;
     console.warn('Supabase fetch failed, falling back to IndexedDB:', err.message);
     return localTransactions();
   } finally {
@@ -175,22 +171,22 @@ async function refreshFromCloud() {
   }
 }
 
-export async function syncLocalToSupabase() {
-  if (!isSupabaseConfigured || !supabase) {
-    throw new Error('Supabase is not configured in .env');
-  }
+// Uploads every entry on this device to an empty cloud table and caches the
+// uploaded rows (with their cloud ids). If the upload fails nothing changes here.
+async function seedEmptyCloud() {
   const local = await localTransactions();
-  if (local.length === 0) return 0;
-
-  const toInsert = local.map(cloudFields);
-  const { data, error } = await supabase.from('transactions').insert(toInsert).select();
-  if (error) throw error;
-
-  if (data && data.length > 0) {
-    await db.transactions.clear();
-    await db.transactions.bulkAdd(data.map(t => ({ ...t })));
+  let uploaded = [];
+  if (local.length > 0) {
+    const { data, error } = await supabase.from('transactions').insert(local.map(cloudFields)).select();
+    if (error) throw error;
+    uploaded = data;
   }
-  return data.length;
+  // Pending deletes go too: there's nothing left in the cloud to delete
+  await db.transaction('rw', db.transactions, async () => {
+    await db.transactions.clear();
+    await db.transactions.bulkAdd(uploaded);
+  });
+  return localTransactions();
 }
 
 

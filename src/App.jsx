@@ -7,7 +7,8 @@ import Logo from './components/Logo';
 import { calculateTotals, getMonthName } from './utils';
 import { isSupabaseConfigured } from './supabaseClient';
 import QuickAdd from './components/QuickAdd';
-import { House, ChartColumn, SlidersHorizontal, SquarePlus, CloudCheck, CloudOff, Mic } from 'lucide-react';
+import { House, ChartColumn, SlidersHorizontal, SquarePlus, CloudCheck, CloudOff, Mic, RefreshCw } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 // Not needed for the first screen, so they load separately (charts, PDF and Excel
 // export are the bulk of the code). prefetchScreens fetches them once the app is idle.
@@ -44,7 +45,7 @@ function greeting(hour) {
 }
 
 export default function App() {
-  const { transactions, loading } = useApp();
+  const { transactions, loading, syncNow } = useApp();
   const [activeTab, setActiveTab] = useState('home');
   const [showForm, setShowForm] = useState(false);
   const [showVoice, setShowVoice] = useState(!!sharedOnLaunch);
@@ -79,6 +80,20 @@ export default function App() {
     : 0;
   const period = `${getMonthName(view.month)} ${view.year}`;
   const unsynced = transactions.filter((t) => t.pending).length;
+  const [syncing, setSyncing] = useState(false);
+
+  // Tapping "not synced" tries the upload now and says why if it still can't
+  const retrySync = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const problem = await syncNow();
+      if (problem) toast.error(problem, { id: 'sync', duration: 5000 });
+      else toast.success('All entries synced', { id: 'sync' });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleEdit = (tx) => {
     setEditTx(tx);
@@ -186,13 +201,20 @@ export default function App() {
 
           {activeTab === 'home' && isSupabaseConfigured && (
             unsynced > 0 ? (
-              <span
+              <button
+                type="button"
+                onClick={retrySync}
+                disabled={syncing}
                 className="card shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold text-muted"
-                title="Saved on this device. Uploads when you're back online."
+                title="Saved on this device. Tap to upload now."
               >
-                <CloudOff className="w-3.5 h-3.5" strokeWidth={2.2} />
-                {unsynced} not synced
-              </span>
+                {syncing ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" strokeWidth={2.2} />
+                ) : (
+                  <CloudOff className="w-3.5 h-3.5" strokeWidth={2.2} />
+                )}
+                {syncing ? 'Syncing…' : `${unsynced} not synced`}
+              </button>
             ) : (
               <span className="card shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-xs font-semibold text-income">
                 <CloudCheck className="w-3.5 h-3.5" strokeWidth={2.2} />

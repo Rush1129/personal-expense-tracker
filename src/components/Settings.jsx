@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useApp } from '../AppContext';
-import { exportAllData, importAllData, syncLocalToSupabase } from '../db';
+import { exportAllData, importAllData } from '../db';
 import { isSupabaseConfigured, checkSupabaseHealth } from '../supabaseClient';
 import { browserSpeechSupported } from '../voice/useVoiceInput';
 import {
@@ -12,7 +12,7 @@ import { Segmented, Switch } from './Controls';
 import { accessEnabled, lockDevice } from '../access';
 
 export default function Settings() {
-  const { darkMode, toggleDarkMode, refreshTransactions, transactions, voiceSettings, updateVoiceSettings } = useApp();
+  const { darkMode, toggleDarkMode, refreshTransactions, syncNow, transactions, voiceSettings, updateVoiceSettings } = useApp();
   const fileInputRef = useRef(null);
   const [importing, setImporting] = useState(false);
   const [testingSupabase, setTestingSupabase] = useState(false);
@@ -34,14 +34,13 @@ export default function Settings() {
     }
   };
 
+  // Uploads only what hasn't reached the cloud yet, so entries aren't duplicated
   const handleSyncToSupabase = async () => {
     setSyncingCloud(true);
     try {
-      const count = await syncLocalToSupabase();
-      await refreshTransactions();
-      toast.success(`Successfully synced ${count} transactions to Supabase!`);
-    } catch (err) {
-      toast.error(`Sync failed: ${err.message}`);
+      const problem = await syncNow();
+      if (problem) toast.error(problem, { id: 'sync', duration: 5000 });
+      else toast.success('All entries synced', { id: 'sync' });
     } finally {
       setSyncingCloud(false);
     }
@@ -193,8 +192,8 @@ export default function Settings() {
             <button onClick={handleSyncToSupabase} disabled={syncingCloud} className={rowButton}>
               <RowIcon icon={RefreshCw} spin={syncingCloud} />
               <RowText
-                title="Sync local data to cloud"
-                sub={syncingCloud ? 'Uploading local transactions...' : 'Push local offline entries to Supabase table'}
+                title="Upload unsynced entries"
+                sub={syncingCloud ? 'Uploading...' : 'Send entries saved only on this device to the cloud'}
               />
               <Chevron />
             </button>
