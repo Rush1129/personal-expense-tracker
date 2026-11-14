@@ -13,19 +13,6 @@
         "--strictPort"
       ],
       "port": 5174
-    },
-    {
-      "name": "dev-local-codes",
-      "runtimeExecutable": "node",
-      "runtimeArgs": [
-        "--import",
-        "data:text/javascript,process.env.SUPABASE_URL='';process.env.SUPABASE_ANON_KEY='';process.env.VITE_SUPABASE_URL='';process.env.VITE_SUPABASE_ANON_KEY='';process.env.ACCESS_CODES='Test-Code-1,second';",
-        "node_modules/vite/bin/vite.js",
-        "--port",
-        "5176",
-        "--strictPort"
-      ],
-      "port": 5176
     }
   ]
 }

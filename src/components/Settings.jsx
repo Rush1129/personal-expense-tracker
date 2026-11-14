@@ -5,18 +5,35 @@ import { isSupabaseConfigured, checkSupabaseHealth } from '../supabaseClient';
 import { browserSpeechSupported } from '../voice/useVoiceInput';
 import {
   Moon, Sun, Download, Upload, Shield, ChevronRight, Database, Smartphone, Cloud, RefreshCw, CheckCircle2,
-  Mic, Sparkles, CloudCheck, LockKeyhole,
+  Mic, Sparkles, CloudCheck, LogOut, UserRound,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Segmented, Switch } from './Controls';
-import { accessEnabled, lockDevice } from '../access';
 
 export default function Settings() {
-  const { darkMode, toggleDarkMode, refreshTransactions, syncNow, transactions, voiceSettings, updateVoiceSettings } = useApp();
+  const {
+    darkMode, toggleDarkMode, refreshTransactions, syncNow, transactions, voiceSettings, updateVoiceSettings,
+    user, signOut,
+  } = useApp();
   const fileInputRef = useRef(null);
   const [importing, setImporting] = useState(false);
   const [testingSupabase, setTestingSupabase] = useState(false);
   const [syncingCloud, setSyncingCloud] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  // Changes that would be lost by signing out now; a second tap signs out anyway
+  const [unsent, setUnsent] = useState(0);
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      setUnsent(await signOut({ force: unsent > 0 }));
+    } catch (err) {
+      toast.error(`Couldn't sign out: ${err.message}`);
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
   const handleTestSupabase = async () => {
     setTestingSupabase(true);
@@ -98,6 +115,34 @@ export default function Settings() {
         <span className="shrink-0 text-[11px] font-semibold rounded-full px-2 py-1 border border-current/25">v1.0.0</span>
       </div>
 
+      {/* Account */}
+      {user && (
+        <Group title="Account">
+          <div className={row}>
+            <RowIcon icon={UserRound} />
+            <RowText
+              title={user.email}
+              sub={user.app_metadata?.provider === 'google' ? 'Signed in with Google' : 'Signed in with email'}
+            />
+          </div>
+          <Divider />
+          <button onClick={handleSignOut} disabled={signingOut} className={rowButton}>
+            <RowIcon icon={LogOut} />
+            <RowText
+              title={unsent > 0 ? 'Sign out anyway' : 'Sign out'}
+              sub={
+                signingOut
+                  ? 'Uploading your entries first…'
+                  : unsent > 0
+                    ? `${unsent} ${unsent === 1 ? "change hasn't" : "changes haven't"} uploaded yet and will be lost. Tap again to sign out anyway.`
+                    : 'Your entries stay in the cloud and are removed from this device'
+              }
+            />
+            <Chevron />
+          </button>
+        </Group>
+      )}
+
       {/* Appearance */}
       <Group title="Appearance">
         <button
@@ -163,7 +208,7 @@ export default function Settings() {
             title={isSupabaseConfigured ? 'Supabase cloud sync' : 'Local storage only'}
             sub={
               isSupabaseConfigured
-                ? 'Your transactions are synced in real-time with your Supabase database'
+                ? 'Your entries sync with your account in the cloud'
                 : 'Configure VITE_SUPABASE_URL in .env to enable cloud sync'
             }
           />
@@ -242,27 +287,11 @@ export default function Settings() {
             title="Privacy"
             sub={`${
               isSupabaseConfigured
-                ? 'Entries are stored on this device and in your own Supabase project.'
+                ? 'Entries are stored on this device and in the cloud, where only your account can see them.'
                 : 'All data is stored locally on your device. Nothing is sent to any server.'
             } Voice in on-device mode never leaves your phone.`}
           />
         </div>
-        {accessEnabled && (
-          <>
-            <Divider />
-            <button
-              onClick={() => {
-                lockDevice();
-                window.location.reload();
-              }}
-              className={rowButton}
-            >
-              <RowIcon icon={LockKeyhole} />
-              <RowText title="Lock this device" sub="Ask for the access code again the next time the app opens" />
-              <Chevron />
-            </button>
-          </>
-        )}
       </Group>
     </div>
   );

@@ -13,7 +13,7 @@ A beautiful, offline-first Progressive Web App for tracking your daily income an
 - **🌙 Dark Mode** with automatic system preference detection
 - **📱 PWA** — installable on your phone, works offline
 - **💾 Backup/Restore** — export all data as JSON, import it back anytime
-- **☁️ Supabase cloud sync** — optional, data persists across devices
+- **☁️ Accounts & cloud sync** — optional, with Supabase: each person signs in (email or Google), sees only their own entries, and syncs across their devices
 - **🇮🇳 Indian format** — ₹ currency with Indian digit grouping (1,00,000)
 
 ## Quick Start (Offline Only)
@@ -40,8 +40,9 @@ To persist data in the cloud and sync across devices:
 ### 2. Create the Database Table
 
 1. In your Supabase dashboard, go to **SQL Editor** → **New Query**
-2. Paste the contents of [`supabase-setup.sql`](supabase-setup.sql)
+2. Paste the contents of [`supabase-setup.sql`](supabase-setup.sql), and replace `you@example.com` with the email you'll sign in with
 3. Click **Run**
+4. Set up sign-in as described in [Accounts and friends](#accounts-and-friends)
 
 ### 3. Get Your API Keys
 
@@ -65,25 +66,59 @@ SUPABASE_ANON_KEY=eyJhbG...your-anon-key
 npm run dev
 ```
 
-The app will now automatically sync all transactions to Supabase. If the network is unavailable, it falls back to IndexedDB.
+The app now asks you to sign in, then syncs your entries to Supabase. If the network is unavailable, it falls back to IndexedDB.
 
 ---
 
-## Access Code (optional)
+## Accounts and friends
 
-To show a code screen before the app opens, list one or more codes in `.env` (or in your host's environment variables):
+With Supabase configured, everyone signs in, and each account sees only its own entries. The database enforces this with row-level security, so the anon key in the app bundle reads nothing on its own. Only emails on the invite list (the `allowed_emails` table) can create an account.
 
-```bash
-ACCESS_CODES=sunny-mango-42,blue-kite-77
+### Supabase settings (once)
+
+1. **Authentication → Sign In / Providers → Email:** keep it enabled and turn **Confirm email** off. Supabase's built-in email only reaches your own team's addresses, so confirmation emails wouldn't reach friends.
+2. **Authentication → URL Configuration:** set **Site URL** to your deployed address. Add it, plus `http://localhost:5173`, under **Redirect URLs**.
+3. **Google (optional):**
+   - In Google Cloud Console, create an OAuth client of type *Web application* with the redirect URI `https://<your-project>.supabase.co/auth/v1/callback`.
+   - Set the OAuth consent screen to *In production*. Basic email and profile access needs no review.
+   - Paste the client ID and secret into **Authentication → Sign In / Providers → Google**.
+
+### Invite a friend
+
+```sql
+insert into allowed_emails (email) values ('friend@example.com');  -- lowercase
 ```
 
-- Codes are not case-sensitive. Give each person their own code, so you can remove one without affecting the others.
-- A device that enters a valid code is remembered and won't be asked again. Removing that code from `ACCESS_CODES` (and redeploying) asks those devices again.
-- **Settings → Lock this device** forgets the code on the current device.
-- Leave `ACCESS_CODES` empty to turn the screen off.
-- On iPhone, an app added to the Home Screen keeps its own storage, so it asks for the code once more after installing.
+Then send them the app's link. They tap **Create an account** or **Continue with Google**. Any other email gets "This email isn't on the invite list".
 
-> **This is a lock screen, not real security.** The check runs in the browser: only hashes of the codes are shipped, but someone technical can still get past it. Your data is also still reachable directly through the Supabase anon key, so keep this for keeping casual visitors out. Longer codes (two or three words) are harder to guess.
+### Remove a friend
+
+Delete their row from `allowed_emails`, and their user under **Authentication → Users**. Deleting the user also deletes their entries.
+
+### Reset a friend's password
+
+No email service is connected, so **Forgot password** can't send emails. Set a new password in the SQL Editor and tell them what it is:
+
+```sql
+update auth.users
+set encrypted_password = extensions.crypt('new-password-here', extensions.gen_salt('bf'))
+where email = 'friend@example.com';
+```
+
+To send reset emails instead, connect an email service such as Brevo or Resend under **Authentication → SMTP Settings**.
+
+### Good to know
+
+- **iPhone:** use email + password inside the Home Screen app. Google sign-in can finish in Safari instead and leave the app signed out.
+- **Signing out** uploads what it can first, then removes that account's entries from the device. Settings warns you if some haven't uploaded yet.
+- **Shared phones** are fine: each account keeps its own offline copy.
+
+### Upgrading from the single-user version
+
+1. Do the Supabase settings above.
+2. **Authentication → Users → Add user:** create your own account and tick *Auto Confirm User*.
+3. Put your email in [`supabase-multi-user.sql`](supabase-multi-user.sql) and run it in the SQL Editor. Your existing entries become yours.
+4. Deploy straight away. Until the new version reaches your phone, the old one can't sync. Its new entries wait on the phone and upload after you sign in.
 
 ---
 
@@ -99,7 +134,6 @@ vercel
 When prompted, set the environment variables:
 - `SUPABASE_URL` → your Supabase project URL
 - `SUPABASE_ANON_KEY` → your anon key
-- `ACCESS_CODES` → (optional) codes for the lock screen
 
 Or set them in **Vercel Dashboard → Settings → Environment Variables**.
 
@@ -168,8 +202,8 @@ The models run in a Web Worker via [transformers.js](https://huggingface.co/docs
             └─────────────┘  └───────────────┘
 ```
 
-- **Supabase configured?** → Cloud is source of truth, IndexedDB is cache
-- **Supabase not configured?** → IndexedDB only (works great for single device)
+- **Supabase configured?** → Cloud is source of truth, IndexedDB is cache. Each account signed in on a device gets its own cache (`SpendWiseDB-<user id>`).
+- **Supabase not configured?** → IndexedDB only, no sign-in (works great for single device)
 - **Network error?** → Graceful fallback to IndexedDB
 - **Opening the app** shows what's saved on the device right away, then refreshes from Supabase in the background. Charts, PDF and Excel code load only when needed.
 
@@ -180,7 +214,8 @@ src/
 ├── main.jsx           # Entry point
 ├── App.jsx            # Tab navigation, FAB, layout
 ├── AppContext.jsx      # Global state (React Context)
-├── db.js              # Dual-mode database (IndexedDB + Supabase)
+├── db.js              # Dual-mode database (IndexedDB + Supabase), one cache per account
+├── auth.js            # Sign-in, sign-up, Google, sign-out (Supabase Auth)
 ├── supabaseClient.js  # Supabase client (auto-detects env vars)
 ├── utils.js           # Formatters, categories, helpers
 ├── exportUtils.js     # PDF & Excel export
@@ -194,6 +229,7 @@ src/
 │   ├── aiClient.js            # Promise API for the worker
 │   └── ai.worker.js           # Whisper + MiniLM via transformers.js
 └── components/
+    ├── AuthGate.jsx       # Sign-in screen; opens the signed-in account's data
     ├── SummaryCard.jsx    # Balance card + income/expense pills
     ├── VoiceEntry.jsx     # Voice bottom sheet: listen → review → save
     ├── EntryForm.jsx      # Bottom sheet form (add/edit)
@@ -202,7 +238,7 @@ src/
     ├── TimePicker.jsx     # Scrollable wheel time picker (optional)
     ├── Reports.jsx        # Charts, exports, date selector
     ├── Logo.jsx           # The ₹ mark (same outline as the app icons)
-    └── Settings.jsx       # Dark mode, backup, app info
+    └── Settings.jsx       # Account & sign-out, dark mode, backup, app info
 ```
 
 ## License

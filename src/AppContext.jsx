@@ -7,15 +7,20 @@ import {
   deleteTransaction as dbDelete,
   restoreTransaction as dbRestore,
   hasPendingChanges,
+  countPendingChanges,
   getSyncError,
 } from './db';
-import { isSupabaseConfigured } from './supabaseClient';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 const AppContext = createContext(null);
 
 // Why entries are still waiting to upload, in plain words
 function syncProblem(message) {
   if (!navigator.onLine) return "You're offline. Entries will upload when you're back online.";
+  // The sign-in needs renewing and Supabase couldn't do it quickly
+  if (/not signed in/i.test(message)) {
+    return 'Reconnecting your account. Entries are saved on this device and will upload once it’s done.';
+  }
   // A failed request, not an answer from the database: the project is paused,
   // deleted or blocked on this network
   if (!message || /fetch|load failed|network/i.test(message)) {
@@ -24,7 +29,8 @@ function syncProblem(message) {
   return `Cloud database error: ${message}`;
 }
 
-export function AppProvider({ children }) {
+// `user` and `onSignOut` come from AuthGate; both are null in offline-only mode
+export function AppProvider({ children, user = null, onSignOut = null }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(() => {
@@ -98,20 +104,27 @@ export function AppProvider({ children }) {
     };
   }, []);
 
-  // Changes saved without a connection upload when it comes back or the app is reopened
+  // Changes saved without a connection (or a download that failed) are retried
+  // when the connection comes back, the app is reopened, or the sign-in renews
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     const retry = async () => {
-      if (document.visibilityState === 'hidden' || !(await hasPendingChanges())) return;
+      if (document.visibilityState === 'hidden') return;
+      if (!getSyncError() && !(await hasPendingChanges())) return;
       try {
         setTransactions(await getAllTransactions());
       } catch (err) {
         console.warn('Could not upload offline changes:', err);
       }
     };
+    // Supabase calls aren't allowed inside its auth callback, so retry just after
+    const { data: auth } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') setTimeout(retry, 0);
+    });
     window.addEventListener('online', retry);
     document.addEventListener('visibilitychange', retry);
     return () => {
+      auth.subscription.unsubscribe();
       window.removeEventListener('online', retry);
       document.removeEventListener('visibilitychange', retry);
     };
@@ -156,6 +169,23 @@ export function AppProvider({ children }) {
     setDarkMode((prev) => !prev);
   }, []);
 
+  // Uploads what it can, then signs out and removes this account's entries from
+  // the device. If some still haven't uploaded it stops and resolves to how many
+  // (they'd be lost), unless `force` is set. Resolves to 0 once signed out.
+  const signOut = useCallback(
+    async ({ force = false } = {}) => {
+      if (!onSignOut) return 0;
+      if (!force) {
+        await syncNow().catch(() => {});
+        const left = await countPendingChanges();
+        if (left > 0) return left;
+      }
+      await onSignOut();
+      return 0;
+    },
+    [onSignOut, syncNow]
+  );
+
   const value = {
     transactions,
     loading,
@@ -167,6 +197,8 @@ export function AppProvider({ children }) {
     toggleDarkMode,
     refreshTransactions: loadTransactions,
     syncNow,
+    user,
+    signOut,
     voiceSettings,
     updateVoiceSettings,
   };
