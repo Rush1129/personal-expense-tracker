@@ -5,21 +5,14 @@ import { parseTransactions } from '../voice/parseTransaction';
 import { matchCategoryByKeywords } from '../voice/categoryRules';
 import { classifyCategory, onModelProgress, warmUpModel } from '../voice/aiClient';
 import { useVoiceInput } from '../voice/useVoiceInput';
+import { VOICE_LANGUAGES, getVoiceLanguage, hasIndicScript } from '../voice/languages';
 import {
   X, Mic, Square, Loader2, Keyboard, SendHorizontal, Check, SlidersHorizontal, CalendarClock,
-  Sparkles, ArrowUpRight, ArrowDownLeft, ShieldCheck, RotateCcw, MessageSquareText,
+  Sparkles, ArrowUpRight, ArrowDownLeft, ShieldCheck, RotateCcw, MessageSquareText, Languages, ChevronDown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import CategoryIcon, { CategoryGlyph } from './CategoryIcon';
 import { Segmented } from './Controls';
-
-const EXAMPLES = [
-  'Spent 250 on lunch yesterday at 2 pm',
-  'Chai 30 and samosa 20',
-  'Uber to office 180',
-  'Received salary 50,000 on the 1st',
-  'Paid 1,200 for electricity bill',
-];
 
 const toTransaction = (entry) => ({
   type: entry.type,
@@ -34,7 +27,7 @@ function withType(entry, type) {
   if (type === entry.type) return entry;
   let { category, categorySource } = entry;
   if (categorySource !== 'manual') {
-    const match = matchCategoryByKeywords(entry.description || entry.transcript, type);
+    const match = matchCategoryByKeywords(entry.description || entry.transcript, type, entry.lang);
     category = match?.category || 'other';
     categorySource = match ? 'keyword' : 'default';
   } else if (!getCategoriesByType(type).includes(category)) {
@@ -45,7 +38,8 @@ function withType(entry, type) {
 
 // initialText: text shared into the app (a bank SMS); skips the mic and goes straight to review
 export default function VoiceEntry({ onClose, onEditDetails, initialText = '' }) {
-  const { addTransaction, deleteTransaction, voiceSettings } = useApp();
+  const { addTransaction, deleteTransaction, voiceSettings, updateVoiceSettings } = useApp();
+  const voiceLang = getVoiceLanguage(voiceSettings.lang);
   // One entry per thing said: "Chai 30 and samosa 20" gives two
   const [entries, setEntries] = useState(null);
   const [typing, setTyping] = useState(false);
@@ -57,6 +51,7 @@ export default function VoiceEntry({ onClose, onEditDetails, initialText = '' })
 
   const voice = useVoiceInput({
     preferredEngine: voiceSettings.engine,
+    lang: voiceLang.code,
     onResult: (text) => handleText(text),
   });
   const listening = voice.status === 'listening';
@@ -74,14 +69,38 @@ export default function VoiceEntry({ onClose, onEditDetails, initialText = '' })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Switching language while listening starts again in the new language
+  const relistenRef = useRef(false);
+  useEffect(() => {
+    if (!relistenRef.current) return;
+    relistenRef.current = false;
+    voice.start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceLang.code]);
+
+  const changeLanguage = (code) => {
+    if (code === voiceLang.code) return;
+    relistenRef.current = !typing;
+    voice.cancel();
+    voice.clearError();
+    updateVoiceSettings({ lang: code });
+  };
+
   function handleText(text) {
-    const parsed = parseTransactions(text).map((p, key) => ({ ...p, key, amount: p.amount ? String(p.amount) : '' }));
+    const parsed = parseTransactions(text, new Date(), { lang: voiceLang.code }).map((p, key) => ({
+      ...p,
+      key,
+      amount: p.amount ? String(p.amount) : '',
+    }));
     const request = ++requestRef.current;
     setEntries(parsed);
     setTyping(false);
 
-    // The on-device model picks categories the keyword rules couldn't
-    const unsure = voiceSettings.smartCategories ? parsed.filter((p) => p.categorySource === 'default' && p.description) : [];
+    // The on-device model picks categories the keyword rules couldn't. It only knows English,
+    // so descriptions in an Indian script rely on that language's keywords instead.
+    const unsure = voiceSettings.smartCategories
+      ? parsed.filter((p) => p.categorySource === 'default' && p.description && !hasIndicScript(p.description))
+      : [];
     setAiBusy(unsure.length > 0);
     if (!unsure.length) return;
     Promise.all(
@@ -291,7 +310,9 @@ export default function VoiceEntry({ onClose, onEditDetails, initialText = '' })
                       ? `Downloading speech model… ${sttDownload}%`
                       : 'Transcribing on your device…'
                     : listening
-                      ? 'Listening… tap to finish'
+                      ? voiceLang.id === 'en'
+                        ? 'Listening… tap to finish'
+                        : `Listening in ${voiceLang.name}… tap to finish`
                       : voice.error
                         ? 'Tap the mic to try again'
                         : 'Tap the mic and speak'}
@@ -312,17 +333,28 @@ export default function VoiceEntry({ onClose, onEditDetails, initialText = '' })
                     <span>•</span><span>•</span><span>•</span>
                   </span>
                 ) : voice.error ? (
-                  <p className="text-sm text-[#ff8a5c] font-medium">{voice.error}</p>
+                  <div className="flex flex-col items-center gap-3">
+                    <p className="text-sm text-[#ff8a5c] font-medium">{voice.error}</p>
+                    {voice.offerEnglish && (
+                      <button
+                        onClick={() => changeLanguage('en-IN')}
+                        className="h-10 px-4 rounded-full text-sm font-semibold bg-[#1c1e1a] border border-[#2a2c27] text-[#f5f5f2] hover:border-[#4a4d44] transition-colors press-effect"
+                      >
+                        Speak in English instead
+                      </button>
+                    )}
+                  </div>
                 ) : null}
               </div>
             </div>
 
-            {/* Examples */}
-            <p className="text-xs font-semibold text-[#9a9e92] uppercase tracking-[0.06em] mb-2.5">
-              Try saying
-            </p>
+            {/* Examples, and the language to speak in */}
+            <div className="flex items-center justify-between gap-3 mb-2.5">
+              <p className="text-xs font-semibold text-[#9a9e92] uppercase tracking-[0.06em]">Try saying</p>
+              <LanguagePicker value={voiceLang} onChange={changeLanguage} />
+            </div>
             <div className="flex flex-wrap gap-2 mb-5">
-              {EXAMPLES.map((ex) => (
+              {voiceLang.examples.map((ex) => (
                 <button
                   key={ex}
                   onClick={() => {
@@ -344,7 +376,7 @@ export default function VoiceEntry({ onClose, onEditDetails, initialText = '' })
                   value={typed}
                   onChange={(e) => setTyped(e.target.value)}
                   aria-label="Type an entry"
-                  placeholder="Chai 30 and samosa 20, or paste an SMS"
+                  placeholder={voiceLang.placeholder}
                   className="flex-1 min-w-0 h-12 px-4 bg-[#1c1e1a] border border-[#2a2c27] rounded-full text-[15px] font-medium text-[#f5f5f2] placeholder:text-[#7a7e73] focus:outline-none focus:border-[#f5f5f2]"
                 />
                 <button
@@ -396,6 +428,29 @@ export default function VoiceEntry({ onClose, onEditDetails, initialText = '' })
         )}
       </div>
     </div>
+  );
+}
+
+// Compact language switch for the voice sheet; a native select so phones show their own picker
+function LanguagePicker({ value, onChange }) {
+  return (
+    <label className="relative shrink-0 inline-flex items-center gap-1.5 h-10 pl-3 pr-2.5 rounded-full bg-[#1c1e1a] border border-[#2a2c27] text-[13px] font-semibold text-[#d9dbd3] hover:border-[#4a4d44] focus-within:border-[#f5f5f2] transition-colors">
+      <Languages className="w-4 h-4" aria-hidden="true" />
+      <span>{value.native}</span>
+      <ChevronDown className="w-3.5 h-3.5 opacity-70" aria-hidden="true" />
+      <select
+        aria-label="Voice language"
+        value={value.code}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+      >
+        {VOICE_LANGUAGES.map((l) => (
+          <option key={l.code} value={l.code}>
+            {l.native === l.name ? l.name : `${l.native} · ${l.name}`}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

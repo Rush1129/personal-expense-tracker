@@ -4,7 +4,7 @@ A beautiful, offline-first Progressive Web App for tracking your daily income an
 
 ## Features
 
-- **🎙️ Voice entry** — tap **Speak**, say *"Spent 250 on lunch yesterday at 2 pm"*, and the amount, date, time, description and category are filled in for you. Say several at once (*"Chai 30 and samosa 20"*) and check them as a list
+- **🎙️ Voice entry** — tap **Speak**, say *"Spent 250 on lunch yesterday at 2 pm"*, and the amount, date, time, description and category are filled in for you. Say several at once (*"Chai 30 and samosa 20"*) and check them as a list. Works in English, Hindi, Marathi, Gujarati, Bengali, Tamil, Telugu, Kannada and Malayalam
 - **💬 Bank SMS** — on Android, share a debit or UPI SMS to SpendWise from the Share menu (or paste one into *Type instead*): *"Rs.250 debited … to VPA swiggy@icici"* becomes ₹250 · Swiggy · Food
 - **📝 Add/Edit/Delete** income and expense entries with category tagging (auto-suggested from the description)
 - **📅 Calendar date picker** with optional scrollable time selector
@@ -163,13 +163,40 @@ Everything is free and needs no API keys.
 
 | Step | How |
 |------|-----|
-| Speech → text | Browser's built-in speech recognition (`en-IN`). If it's missing or fails (Firefox, Brave, some iOS PWAs), falls back to **Whisper tiny** running on-device (~41 MB, downloaded once). Choose *On-device only* in Settings to keep audio on the phone. |
+| Speech → text | Browser's built-in speech recognition, in the language picked in Settings (`en-IN` by default). For English, if it's missing or fails (Firefox, Brave, some iOS PWAs), falls back to **Whisper tiny** running on-device (~41 MB, downloaded once). Choose *On-device only* in Settings to keep audio on the phone (English only, see below). |
 | Text → amount, date, time, type | Rule-based parser in [`src/voice/parseTransaction.js`](src/voice/parseTransaction.js): handles "2,500", "two hundred and fifty", "1.5k", "2 lakh", "yesterday", "last Friday", "on the 5th", "25/09", "at 7:30 pm", "this morning", income words like "received"/"salary", etc. |
-| Several in one sentence | `parseTransactions` splits on "and", "&", commas and full stops when each part has its own amount ("bread and butter 60" stays one entry). A date or income word said once applies to every part. |
+| Several in one sentence | `parseTransactions` splits on "and", "&", commas and full stops (and each language's own "and": और, आणि, மற்றும்…) when each part has its own amount ("bread and butter 60" stays one entry). A date or income word said once applies to every part. |
 | Bank / UPI SMS | [`src/voice/parseSms.js`](src/voice/parseSms.js) reads the amount, debit or credit, date and payee from common Indian bank formats (SBI, HDFC, ICICI, Axis, Kotak, card spends). Shared SMS arrive through the manifest's `share_target` (Android only; iPhone doesn't support it). |
-| Description → category | Keyword rules tuned for Indian merchants (Swiggy, Ola, DMart, Jio…) in [`src/voice/categoryRules.js`](src/voice/categoryRules.js). When no keyword matches, an on-device **MiniLM** sentence-embedding model (~23 MB) picks the closest category (e.g. "medicines" → Bills, "haircut" → Shopping). |
+| Description → category | Keyword rules tuned for Indian merchants (Swiggy, Ola, DMart, Jio…) in [`src/voice/categoryRules.js`](src/voice/categoryRules.js), plus native-script keywords for each Indian language. When no keyword matches an English description, an on-device **MiniLM** sentence-embedding model (~23 MB) picks the closest category (e.g. "medicines" → Bills, "haircut" → Shopping). |
 
-The models run in a Web Worker via [transformers.js](https://huggingface.co/docs/transformers.js), loaded from the jsDelivr CDN on first use, so they add nothing to the app bundle. To add a category or improve detection, edit `CATEGORIES` in `utils.js` and the matching keywords/example phrases in `categoryRules.js`.
+The models run in a Web Worker via [transformers.js](https://huggingface.co/docs/transformers.js), loaded from the jsDelivr CDN on first use, so they add nothing to the app bundle. To add a category or improve detection, edit `CATEGORIES` in `utils.js`, the English keywords in `categoryRules.js`, the example phrases in `categoryPrototypes.js`, and the native keywords in `src/voice/languages/<lang>.js`.
+
+### Indian languages
+
+Pick the language under **Settings → Voice input → Language**, or with the language button in the voice sheet. The choice is saved on the device. Typing in "Type instead" works in any of these languages too, whatever is picked: the parser goes by the script you type in (Devanagari is read as Hindi unless Marathi is picked).
+
+| Language | Level | What's understood |
+|----------|-------|-------------------|
+| English (`en-IN`) | Full | Everything above. Hindi in English letters ("kal chai pe 30 diye", "papa ne 2000 bheje", "dhai hazaar ka petrol") is understood too. |
+| Hindi (`hi-IN`) | Full | Indian or Devanagari digits (२५०), every number word 1–99 with सौ/हज़ार/लाख/करोड़, डेढ़/ढाई/साढ़े/सवा/पौने ("साढ़े तीन सौ" = 350), आज/कल/परसों, "3 दिन पहले", पिछले हफ़्ते, weekdays, months, "5 तारीख", सुबह/दोपहर/शाम/रात, "7 बजे", spend/receive verbs (ख़र्च किए, दिए, भरा / मिले, आए, "पापा ने दिए"), "और" between entries, Hindi-English mixing ("कल Swiggy से 300 का order"), Hindi category keywords. |
+| Marathi (`mr-IN`) | Full | Same as Hindi with Marathi words: every number 1–99, joined hundreds (दोनशे, अडीचशे, साडेतीनशे), काल/परवा, "गेल्या सोमवारी", सकाळी/संध्याकाळी, "7 वाजता", खर्च केले/दिले/भरले vs मिळाले/"आईने मला दिले", "आणि", Marathi keywords (matched even with joined endings: पेट्रोलसाठी). |
+| Gujarati (`gu-IN`) | Basic | Digits, number words 1–20 and the tens, joined hundreds (પાંચસો), હજાર/લાખ, દોઢ/અઢી/સાડા, આજે/ગઈકાલે/પરમદિવસે, weekdays, સવારે/સાંજે, "7 વાગ્યે", spend/receive verbs, "અને", common keywords. |
+| Bengali (`bn-IN`) | Basic | Digits (incl. ০–৯), number words 1–20 and the tens, joined hundreds (পাঁচশো), হাজার/লাখ, দেড়/আড়াই/সাড়ে, আজ/কাল/পরশু, weekdays, সকালে/সন্ধ্যায়, "7টায়", টাকা as rupees, spend/receive verbs (দিয়েছি vs দিয়েছে), "আর/এবং", common keywords. |
+| Tamil (`ta-IN`) | Basic | Digits, number words 1–10, the tens, நூறு and joined hundreds (ஐநூறு), ஆயிரம்/லட்சம், இன்று/நேற்று/முந்தாநாள், weekdays, காலை/மாலை, "7 மணிக்கு", spend/receive verbs (கொடுத்தேன் vs கொடுத்தார்), "மற்றும்", common keywords. |
+| Telugu (`te-IN`) | Basic | Digits, number words 1–10 and the tens ("ఇరవై ఐదు" = 25), వంద/వేలు/లక్ష, ఈరోజు/నిన్న/మొన్న, weekdays, ఉదయం/సాయంత్రం, "6 గంటలకు", spend/receive verbs (ఇచ్చాను vs ఇచ్చారు), "మరియు", common keywords. |
+| Kannada (`kn-IN`) | Basic | Digits, number words 1–10, the tens, ನೂರು and joined hundreds (ಐನೂರು), ಸಾವಿರ/ಲಕ್ಷ, ಇಂದು/ನಿನ್ನೆ/ಮೊನ್ನೆ, weekdays, ಬೆಳಿಗ್ಗೆ/ಸಂಜೆ, "7 ಗಂಟೆಗೆ", spend/receive verbs (ಕೊಟ್ಟೆ vs ಕೊಟ್ಟರು), "ಮತ್ತು", common keywords. |
+| Malayalam (`ml-IN`) | Basic | Digits, number words 1–10, the tens, നൂറ് and joined hundreds (അഞ്ഞൂറ്), ആയിരം/ലക്ഷം, ഇന്ന്/ഇന്നലെ, weekdays, രാവിലെ/വൈകുന്നേരം, "7 മണിക്ക്", spend/receive verbs (കൊടുത്തു vs തന്നു), "പിന്നെ", common keywords. |
+
+Limits worth knowing:
+
+- **Needs the browser's speech service.** Chrome on Android sends the audio to Google's speech service, so Indian-language voice needs internet. The on-device Whisper tiny model is English-only, and the multilingual tiny model gets most Indian-language words wrong, so there is no offline fallback for these languages. Instead of guessing, the app says so and offers "Speak in English instead" or typing.
+- **iPhone:** Safari's speech recognition uses Apple's dictation. Hindi is supported; the other languages depend on the iOS version. If one isn't available, the app shows a message rather than failing quietly.
+- **What Chrome writes for these languages isn't documented,** so the parser accepts every form: Indian digits or 0–9, number words, native script and English loanwords in either script ("ऑटो" or "auto"). The sample sentences in the test script are written the way the recogniser usually writes them (native script, amounts as digits), but they were typed, not recorded on a phone.
+- **"Basic" languages** don't read long compound number words said in full (Tamil இருநூற்று ஐம்பது, Gujarati બસો પચાસ…). The recogniser normally writes amounts as digits, so this rarely matters; if it happens, the amount box is left empty to fill in.
+- **AI categories are English-only.** The MiniLM model doesn't understand Indian scripts, so non-English descriptions use the language's keyword list. A multilingual model (e.g. multilingual-e5-small) would need about 118 MB instead of 23 MB, so it isn't used.
+- Short words that are also everyday words only count as numbers before a scale or currency word: "एक चाय 20" is ₹20, not ₹1, and "do sau" is 200 but "do" alone isn't 2.
+
+Run the parser checks with `npm run test:voice` (English cases included, so changes for one language can't quietly break another).
 
 ## Tech Stack
 
@@ -184,7 +211,7 @@ The models run in a Web Worker via [transformers.js](https://huggingface.co/docs
 | Charts | Recharts |
 | Icons | Lucide React |
 | PWA | vite-plugin-pwa |
-| Voice | Web Speech API, Whisper tiny + MiniLM via transformers.js (on-device) |
+| Voice | Web Speech API (English + 8 Indian languages), Whisper tiny + MiniLM via transformers.js (on-device) |
 
 ## Data Architecture
 

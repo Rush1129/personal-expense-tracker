@@ -1,7 +1,12 @@
-import { CATEGORIES } from '../utils';
+import { categoriesForType } from './categoryPrototypes';
+import { B0, B1, HINGLISH, LEXICONS, canon, pickNativeLexicon } from './languages';
+
+// Re-exported so existing imports from this file keep working
+export { CATEGORY_PROTOTYPES, categoriesForType } from './categoryPrototypes';
 
 // Keyword rules: instant, offline, and tuned for everyday Indian spending.
 // The longest matching keyword wins, so "phone recharge" → bills, not shopping.
+// Indian-language keywords (native script) live in ./languages/<lang>.js.
 export const CATEGORY_KEYWORDS = {
   // Expenses
   food: [
@@ -64,74 +69,60 @@ export const CATEGORY_KEYWORDS = {
   gift: ['gift', 'birthday money', 'shagun', 'gifted', 'present', 'reward', 'prize', 'won'],
 };
 
-// Example phrases per category for the on-device embedding model. The model
-// compares the spoken description against these to pick the closest category
-// when no keyword matches (e.g. "haircut", "medicines", "maid").
-export const CATEGORY_PROTOTYPES = {
-  food: [
-    'eating out at a restaurant', 'ordered food delivery', 'coffee and snacks', 'lunch or dinner',
-    'street food', 'drinks at a bar',
-  ],
-  transport: [
-    'cab or auto ride', 'fuel for my vehicle', 'bus, train or metro ticket', 'flight ticket',
-    'vehicle repair and servicing', 'parking and toll charges',
-  ],
-  groceries: [
-    'groceries from the supermarket', 'vegetables and fruits', 'milk, bread and eggs',
-    'household supplies and cleaning products', 'monthly ration',
-  ],
-  bills: [
-    'monthly rent', 'electricity, water and gas bill', 'cooking gas cylinder refill',
-    'internet and mobile recharge', 'loan EMI payment', 'insurance premium', 'school or college fees',
-    'online course fee', 'house help salary', 'doctor and medicines', 'medical bills and pharmacy',
-    'gym membership', 'laundry and dry cleaning',
-  ],
-  shopping: [
-    'bought clothes and shoes', 'online shopping order', 'new gadget or electronics',
-    'personal care and grooming', 'haircut at a salon', 'home decor and furniture', 'gift for a friend',
-    'sports equipment', 'kitchen and home appliances',
-  ],
-  entertainment: [
-    'movie tickets', 'streaming subscription', 'video games', 'concert or event tickets',
-    'party and celebrations', 'weekend trip and vacation', 'hotel stay on a holiday', 'sightseeing tour',
-    'hobbies and fun activities',
-  ],
-  salary: ['monthly salary credited', 'paycheck from my employer', 'bonus from work', 'internship stipend'],
-  pocketmoney: ['pocket money from parents', 'allowance from family', 'money from mom or dad'],
-  investment: [
-    'stock market profit', 'mutual fund returns', 'interest from bank deposit', 'dividend payout',
-    'sold shares',
-  ],
-  freelance: ['payment from a client', 'freelance project work', 'side gig income', 'consulting fees'],
-  gift: ['birthday gift money', 'cash gift from relatives', 'won a prize', 'wedding shagun'],
-};
-
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Precompile one regex per keyword; "s?" lets "snack" also match "snacks".
-const RULES = Object.entries(CATEGORY_KEYWORDS).flatMap(([category, words]) =>
-  words.map((word) => ({
-    category,
-    word,
-    regex: new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRegex(word)}s?(?=$|[^\\p{L}\\p{N}])`, 'iu'),
-  }))
-);
+const rulesFrom = (table, toRule) =>
+  Object.entries(table).flatMap(([category, words]) => words.map((word) => toRule(category, word)));
 
-export function categoriesForType(type) {
-  return Object.keys(CATEGORIES).filter((key) => {
-    const t = CATEGORIES[key].type;
-    return t === 'both' || t === type || (!t && type === 'expense');
-  });
+// Precompile one regex per keyword; "s?" lets "snack" also match "snacks".
+// Latin-script Hindi words ("bijli", "dawai") sit alongside the English ones.
+const latinRule = (category, word) => ({
+  category,
+  word,
+  regex: new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRegex(word)}s?(?=$|[^\\p{L}\\p{N}])`, 'iu'),
+});
+const RULES = [...rulesFrom(CATEGORY_KEYWORDS, latinRule), ...rulesFrom(HINGLISH.categories, latinRule)];
+
+// Native-script keywords. Vowel signs after the word are allowed (किताब → किताबें).
+// In languages that join endings to words (Marathi, Tamil, …) a keyword of three or
+// more letters also matches as a word start: पेट्रोल → पेट्रोलसाठी, சாப்பாடு → சாப்பாட்டுக்கு.
+function nativeRule(category, rawWord, prefix) {
+  const word = canon(rawWord).toLowerCase();
+  const forced = word.endsWith('~');
+  let stem = forced ? word.slice(0, -1) : word;
+  if (prefix && !forced) {
+    const cut = stem.replace(/\p{M}$/u, ''); // the last vowel sign/virama often changes when inflected
+    if ([...cut].length >= 3) stem = cut;
+  }
+  const open = forced || (prefix && [...stem].length >= 3);
+  const body = escapeRegex(stem).replace(/ /g, '\\s+');
+  return {
+    category,
+    word: stem,
+    regex: new RegExp(`${B0}${body}${open ? '[\\p{L}\\p{M}]*' : '\\p{M}*'}${B1}`, 'iu'),
+  };
+}
+const nativeRules = {};
+function rulesFor(lexicon) {
+  if (!lexicon) return RULES;
+  nativeRules[lexicon.id] ??= [
+    ...RULES,
+    ...rulesFrom(lexicon.categories, (category, word) => nativeRule(category, word, lexicon.prefix)),
+  ];
+  return nativeRules[lexicon.id];
 }
 
 // Returns { category, keyword } for the best keyword match, or null.
-export function matchCategoryByKeywords(text, type = 'expense') {
+// lang ('hi', 'ta-IN', …) picks the native keyword list; without it the text's script decides.
+export function matchCategoryByKeywords(text, type = 'expense', lang) {
   if (!text) return null;
+  const t = canon(text);
+  const lexicon = LEXICONS[lang] || pickNativeLexicon(t, lang);
   const allowed = new Set(categoriesForType(type));
   let best = null;
-  for (const rule of RULES) {
+  for (const rule of rulesFor(lexicon)) {
     if (!allowed.has(rule.category)) continue;
-    if (rule.regex.test(text) && (!best || rule.word.length > best.keyword.length)) {
+    if (rule.regex.test(t) && (!best || rule.word.length > best.keyword.length)) {
       best = { category: rule.category, keyword: rule.word };
     }
   }

@@ -3,9 +3,10 @@ import { useApp } from '../AppContext';
 import { exportAllData, importAllData } from '../db';
 import { isSupabaseConfigured, checkSupabaseHealth } from '../supabaseClient';
 import { browserSpeechSupported } from '../voice/useVoiceInput';
+import { LEVEL_NOTES, VOICE_LANGUAGES, getVoiceLanguage } from '../voice/languages';
 import {
-  Moon, Sun, Download, Upload, Shield, ChevronRight, Database, Smartphone, Cloud, RefreshCw, CheckCircle2,
-  Mic, Sparkles, CloudCheck, LogOut, UserRound,
+  Moon, Sun, Download, Upload, Shield, ChevronRight, ChevronDown, Database, Smartphone, Cloud, RefreshCw,
+  CheckCircle2, Mic, Sparkles, CloudCheck, LogOut, UserRound, Languages,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Segmented, Switch } from './Controls';
@@ -22,6 +23,8 @@ export default function Settings() {
   const [signingOut, setSigningOut] = useState(false);
   // Changes that would be lost by signing out now; a second tap signs out anyway
   const [unsent, setUnsent] = useState(0);
+  const voiceLang = getVoiceLanguage(voiceSettings.lang);
+  const indianLanguage = voiceLang.id !== 'en';
 
   const handleSignOut = async () => {
     if (signingOut) return;
@@ -159,6 +162,33 @@ export default function Settings() {
 
       {/* Voice input */}
       <Group title="Voice input">
+        {/* A native select over the row, so phones show their own picker */}
+        <label className={`${rowButton} relative cursor-pointer`}>
+          <RowIcon icon={Languages} />
+          <RowText
+            title="Language"
+            sub={`${voiceLang.native === voiceLang.name ? voiceLang.name : `${voiceLang.name} (${voiceLang.native})`}. ${
+              LEVEL_NOTES[voiceLang.level]
+            }.${indianLanguage ? " Uses your browser's speech service, so it needs internet." : ''}`}
+          />
+          <span className="shrink-0 inline-flex items-center gap-1 text-sm font-semibold">
+            {voiceLang.native}
+            <ChevronDown className="w-4 h-4 text-muted" strokeWidth={2.2} />
+          </span>
+          <select
+            aria-label="Voice language"
+            value={voiceLang.code}
+            onChange={(e) => updateVoiceSettings({ lang: e.target.value })}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          >
+            {VOICE_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.native === l.name ? l.name : `${l.native} · ${l.name}`}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Divider />
         <div className="p-3.5 flex flex-col gap-3">
           <div className="flex items-center gap-3">
             <RowIcon icon={Mic} />
@@ -166,10 +196,16 @@ export default function Settings() {
               title="Speech recognition"
               sub={
                 voiceSettings.engine === 'on-device'
-                  ? 'Private: audio stays on this device. One-time ~41 MB model download.'
-                  : browserSpeechSupported
-                    ? "Fast, using your browser's speech service. Falls back to on-device if it fails."
-                    : 'Your browser has no built-in speech service, so the on-device model is used.'
+                  ? indianLanguage
+                    ? `The on-device model only understands English, so ${voiceLang.name} voice needs Auto. You can still type in ${voiceLang.name}.`
+                    : 'Private: audio stays on this device. One-time ~41 MB model download.'
+                  : !browserSpeechSupported
+                    ? indianLanguage
+                      ? `Your browser has no built-in speech service, so ${voiceLang.name} voice isn't available here. You can still type in ${voiceLang.name}.`
+                      : 'Your browser has no built-in speech service, so the on-device model is used.'
+                    : indianLanguage
+                      ? "Using your browser's speech service. The on-device model is English-only, so there's no offline fallback."
+                      : "Fast, using your browser's speech service. Falls back to on-device if it fails."
               }
             />
           </div>
@@ -194,7 +230,9 @@ export default function Settings() {
           <RowIcon icon={Sparkles} />
           <RowText
             title="AI category detection"
-            sub="On-device model picks a category when keywords don't match (~23 MB, one-time)"
+            sub={`On-device model picks a category when keywords don't match (~23 MB, one-time)${
+              indianLanguage ? `. English descriptions only; ${voiceLang.name} uses keywords` : ''
+            }`}
           />
           <Switch on={voiceSettings.smartCategories} />
         </button>
