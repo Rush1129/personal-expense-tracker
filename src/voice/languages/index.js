@@ -249,9 +249,42 @@ function buildNumbers(raw) {
   };
 }
 
+// English word list for toEnglish(). Languages that join endings to words also get
+// "stems" (the word minus its last vowel sign) so சாப்பாடு finds சாப்பாட்டுக்கு.
+function buildGlossary(table = {}, prefix = false) {
+  const exact = new Map();
+  const stems = new Map();
+  for (const [word, en] of Object.entries(table)) {
+    const w = canon(word).toLowerCase();
+    exact.set(w, en);
+    if (!prefix || w.includes(' ')) continue;
+    const cut = w.replace(/\p{M}$/u, '');
+    // Malayalam final chillu letters turn back into the full consonant when an ending is
+    // added: കൂട്ടുകാർ → കൂട്ടുകാരുടെ
+    const unchillu = w.replace(/[ൺൻർൽൾൿ]$/, (c) => ({ 'ൺ': 'ണ', 'ൻ': 'ന', 'ർ': 'ര', 'ൽ': 'ല', 'ൾ': 'ള', 'ൿ': 'ക' })[c]);
+    for (const stem of [w, cut, unchillu]) if (stem.length >= 3 && !stems.has(stem)) stems.set(stem, en);
+  }
+  return { exact, stems };
+}
+
+// { with: ['के साथ', 'साथ'], … } → [{ words: ['के', 'साथ'], post: 'with' }, …], longest first
+function buildPosts(table = {}) {
+  return Object.entries(table)
+    .flatMap(([post, list]) => list.map((w) => ({ words: canon(w).toLowerCase().split(' '), post })))
+    .sort((a, b) => b.words.length - a.words.length);
+}
+
 function compile(raw) {
   const replaceAll = (list) => wordsRe(list, 'giu');
   return {
+    glossary: buildGlossary(raw.glossary, raw.prefix),
+    posts: buildPosts(raw.posts),
+    // Postpositions written joined to the word (मित्रांसोबत = with friends)
+    suffixes: Object.entries(raw.suffixes || {})
+      .map(([s, info]) => [canon(s), typeof info === 'string' ? { post: info } : info])
+      .sort((a, b) => b[0].length - a[0].length),
+    pluralMarks: (raw.pluralMarks || []).map(canon),
+    andWords: (raw.and || []).map((w) => canon(w).toLowerCase()),
     id: raw.id,
     script: raw.script,
     prefix: !!raw.prefix,

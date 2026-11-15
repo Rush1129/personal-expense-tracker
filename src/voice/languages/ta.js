@@ -92,6 +92,51 @@ export default {
   ],
   edge: ['க்கு', 'க்காக', 'காக', 'இல்', 'கூட', 'உடன்', 'அன்று', 'மற்றும்', 'அப்புறம்', 'ஒரு'],
 
+  // ---- English descriptions (toEnglish.js) ----
+  // Tamil joins case endings to the word; the word start is enough to translate it
+  posts: { with: ['உடன்', 'கூட'], for: ['க்காக'] },
+  // நண்பர்களுடன் = with friends, கடையில் = in the shop
+  suffixes: {
+    'ுடன்': 'with', 'உடன்': 'with', 'ோடு': 'with', 'ிலிருந்து': 'from', 'இலிருந்து': 'from', 'ில்': 'in',
+    'இல்': 'in', 'ுக்காக': 'for', 'க்காக': 'for',
+  },
+  glossary: {
+    'சாப்பாடு': 'meal', 'உணவு': 'food', 'டிபன்': 'tiffin', 'டிஃபன்': 'tiffin', 'டீ': 'tea', 'டீக்கு': 'tea',
+    'தேநீர்': 'tea', 'காபி': 'coffee', 'இட்லி': 'idli', 'தோசை': 'dosa', 'வடை': 'vada', 'பொங்கல்': 'pongal',
+    'பரோட்டா': 'parotta', 'புரோட்டா': 'parotta', 'பிரியாணி': 'biryani', 'பீட்சா': 'pizza', 'பர்கர்': 'burger',
+    'ஹோட்டல்': 'hotel', 'உணவகம்': 'restaurant', 'மெஸ்': 'mess', 'கேண்டீன்': 'canteen', 'ஸ்விக்கி': 'Swiggy',
+    'சொமேட்டோ': 'Zomato', 'இனிப்பு': 'sweets', 'ஸ்வீட்': 'sweets', 'ஐஸ்கிரீம்': 'ice cream', 'ஜூஸ்': 'juice',
+    'கேக்': 'cake', 'ஸ்நாக்ஸ்': 'snacks', 'லஞ்ச்': 'lunch', 'டின்னர்': 'dinner', 'தண்ணீர்': 'water',
+    'டீக்கடை': 'tea shop',
+    'ஆட்டோ': 'auto', 'டாக்சி': 'taxi', 'கேப்': 'cab', 'ஊபர்': 'Uber', 'ஓலா': 'Ola', 'பஸ்': 'bus',
+    'பேருந்து': 'bus', 'ரயில்': 'train', 'ட்ரெயின்': 'train', 'மெட்ரோ': 'metro', 'பெட்ரோல்': 'petrol',
+    'டீசல்': 'diesel', 'பார்க்கிங்': 'parking', 'டோல்': 'toll', 'விமானம்': 'flight', 'ஃப்ளைட்': 'flight',
+    'டிக்கெட்': 'ticket', 'பயணம்': 'travel', 'வண்டி': 'vehicle', 'பைக்': 'bike',
+    'மளிகை': 'groceries', 'காய்கறி': 'vegetables', 'பழம்': 'fruit', 'பழங்கள்': 'fruit', 'பால்': 'milk',
+    'தயிர்': 'curd', 'பனீர்': 'paneer', 'பிரட்': 'bread', 'முட்டை': 'eggs', 'அரிசி': 'rice', 'பருப்பு': 'dal',
+    'மாவு': 'flour', 'எண்ணெய்': 'oil', 'சர்க்கரை': 'sugar', 'உப்பு': 'salt', 'மசாலா': 'spices', 'சோப்பு': 'soap',
+    'ரேஷன்': 'ration', 'கிலோ': 'kg',
+    'வாடகை': 'rent', 'வீட்டு வாடகை': 'house rent', 'கரண்ட் பில்': 'electricity bill', 'மின்சாரம்': 'electricity',
+    'மின் கட்டணம்': 'electricity bill', 'பில்': 'bill', 'கட்டணம்': 'fee', 'கேஸ்': 'gas', 'சிலிண்டர்': 'cylinder',
+    'வைஃபை': 'WiFi', 'இன்டர்நெட்': 'internet', 'ரீசார்ஜ்': 'recharge', 'இஎம்ஐ': 'EMI', 'கடன்': 'loan',
+    'லோன்': 'loan', 'காப்பீடு': 'insurance', 'இன்சூரன்ஸ்': 'insurance', 'பீஸ்': 'fees', 'ஃபீஸ்': 'fees',
+    'டியூஷன்': 'tuition', 'வரி': 'tax', 'மருந்து': 'medicine', 'மாத்திரை': 'tablets', 'டாக்டர்': 'doctor',
+    'மருத்துவமனை': 'hospital', 'ஆஸ்பத்திரி': 'hospital', 'மெடிக்கல்': 'pharmacy', 'ஜிம்': 'gym',
+    'ஷாப்பிங்': 'shopping', 'துணி': 'clothes', 'ஆடை': 'clothes', 'சட்டை': 'shirt', 'புடவை': 'saree',
+    'சேலை': 'saree', 'ஜீன்ஸ்': 'jeans', 'செருப்பு': 'slippers', 'ஷூ': 'shoes', 'பை': 'bag', 'வாட்ச்': 'watch',
+    'அமேசான்': 'Amazon', 'பிளிப்கார்ட்': 'Flipkart', 'மொபைல்': 'mobile', 'போன்': 'phone', 'லேப்டாப்': 'laptop',
+    'சார்ஜர்': 'charger', 'பரிசு': 'gift', 'புத்தகம்': 'book', 'நோட்டு': 'notebook', 'சலூன்': 'salon',
+    'சினிமா': 'movie', 'படம்': 'movie', 'திரைப்படம்': 'movie', 'மூவி': 'movie', 'பார்ட்டி': 'party',
+    'சுற்றுலா': 'trip', 'டூர்': 'trip', 'ட்ரிப்': 'trip', 'பிக்னிக்': 'picnic',
+    'சம்பளம்': 'salary', 'ஊதியம்': 'salary', 'சேலரி': 'salary', 'போனஸ்': 'bonus', 'வட்டி': 'interest',
+    'மொய்': 'gift money', 'கைச்செலவு': 'pocket money',
+    'அம்மா': 'mom', 'அப்பா': 'dad', 'அண்ணன்': 'elder brother', 'அண்ணா': 'elder brother',
+    'தம்பி': 'younger brother', 'அக்கா': 'elder sister', 'தங்கை': 'younger sister', 'நண்பர்': 'friend',
+    'நண்பன்': 'friend', 'நண்பர்கள்': 'friends', 'குழந்தைகள்': 'kids', 'வீடு': 'home', 'ஆபீஸ்': 'office',
+    'அலுவலகம்': 'office', 'கடை': 'shop', 'பள்ளி': 'school', 'கல்லூரி': 'college', 'கோவில்': 'temple',
+    'கல்யாணம்': 'wedding', 'பிறந்தநாள்': 'birthday',
+  },
+
   categories: {
     food: [
       'சாப்பாடு', 'சாப்பிட்ட', 'உணவு', 'டிபன்', 'டிஃபன்', 'டீ', 'டீக்கு', 'தேநீர்', 'காபி', 'டீக்கடை', 'இட்லி',

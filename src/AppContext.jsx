@@ -41,8 +41,9 @@ export function AppProvider({ children, user = null, onSignOut = null }) {
   // engine: 'auto' (browser speech, on-device fallback) | 'on-device' (Whisper only)
   // smartCategories: use the on-device model when keyword rules can't pick a category
   // lang: speech recogniser language ('en-IN', 'hi-IN', …; see voice/languages)
+  // englishDescriptions: save descriptions said in other languages in English
   const [voiceSettings, setVoiceSettings] = useState(() => {
-    const defaults = { engine: 'auto', smartCategories: true, lang: 'en-IN' };
+    const defaults = { engine: 'auto', smartCategories: true, lang: 'en-IN', englishDescriptions: true };
     try {
       return { ...defaults, ...JSON.parse(localStorage.getItem('spendwise-voice') || '{}') };
     } catch {

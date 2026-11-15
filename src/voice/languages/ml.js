@@ -71,6 +71,48 @@ export default {
   ],
   edge: ['ന്', 'ക്ക്', 'ഇൽ', 'കൂടെ', 'പിന്നെ', 'ഒരു'],
 
+  // ---- English descriptions (toEnglish.js) ----
+  posts: { with: ['കൂടെ', 'ഒപ്പം'], for: ['വേണ്ടി'] },
+  // കൂട്ടുകാരുടെ = of friends, കൂട്ടുകാരോടൊപ്പം = with friends, കടയിൽ = in the shop
+  suffixes: {
+    'ോടൊപ്പം': 'with', 'ുമായി': 'with', 'ുടെ': 'of', 'ന്റെ': 'of', 'യിൽ': 'in', 'ിൽ': 'in', 'ിൽനിന്ന്': 'from',
+    'ിന്': 'for', 'ക്ക്': 'for',
+  },
+  glossary: {
+    'ഭക്ഷണം': 'food', 'ഊണ്': 'meal', 'ചായ': 'tea', 'കാപ്പി': 'coffee', 'കോഫി': 'coffee', 'ടിഫിൻ': 'tiffin',
+    'പ്രാതൽ': 'breakfast', 'ബ്രേക്ക്ഫാസ്റ്റ്': 'breakfast', 'ലഞ്ച്': 'lunch', 'ഡിന്നർ': 'dinner', 'ഇഡ്ഡലി': 'idli',
+    'ദോശ': 'dosa', 'പൊറോട്ട': 'parotta', 'ബിരിയാണി': 'biryani', 'പിസ്സ': 'pizza', 'ബർഗർ': 'burger',
+    'ഹോട്ടൽ': 'hotel', 'റെസ്റ്റോറന്റ്': 'restaurant', 'കാന്റീൻ': 'canteen', 'സ്വിഗ്ഗി': 'Swiggy',
+    'സൊമാറ്റോ': 'Zomato', 'മധുരം': 'sweets', 'ഐസ്ക്രീം': 'ice cream', 'ജ്യൂസ്': 'juice', 'കേക്ക്': 'cake',
+    'ചായക്കട': 'tea shop', 'വെള്ളം': 'water',
+    'ഓട്ടോ': 'auto', 'ടാക്സി': 'taxi', 'കാബ്': 'cab', 'ഊബർ': 'Uber', 'ബസ്': 'bus', 'ബസ്സ്': 'bus',
+    'ട്രെയിൻ': 'train', 'തീവണ്ടി': 'train', 'മെട്രോ': 'metro', 'പെട്രോൾ': 'petrol', 'ഡീസൽ': 'diesel',
+    'പാർക്കിംഗ്': 'parking', 'ടോൾ': 'toll', 'ഫ്ലൈറ്റ്': 'flight', 'വിമാനം': 'flight', 'ടിക്കറ്റ്': 'ticket',
+    'യാത്ര': 'travel', 'വണ്ടി': 'vehicle', 'ബൈക്ക്': 'bike',
+    'പലചരക്ക്': 'groceries', 'പച്ചക്കറി': 'vegetables', 'പഴം': 'fruit', 'പഴങ്ങൾ': 'fruit', 'പാൽ': 'milk',
+    'തൈര്': 'curd', 'പനീർ': 'paneer', 'ബ്രെഡ്': 'bread', 'മുട്ട': 'eggs', 'അരി': 'rice', 'പരിപ്പ്': 'dal',
+    'മാവ്': 'flour', 'എണ്ണ': 'oil', 'പഞ്ചസാര': 'sugar', 'ഉപ്പ്': 'salt', 'മസാല': 'spices', 'സോപ്പ്': 'soap',
+    'റേഷൻ': 'ration', 'മീൻ': 'fish', 'കിലോ': 'kg',
+    'വാടക': 'rent', 'വീട്ടുവാടക': 'house rent', 'കറന്റ് ബിൽ': 'electricity bill', 'വൈദ്യുതി': 'electricity',
+    'ബിൽ': 'bill', 'വെള്ളക്കരം': 'water bill', 'ഗ്യാസ്': 'gas', 'സിലിണ്ടർ': 'cylinder', 'വൈഫൈ': 'WiFi',
+    'ഇന്റർനെറ്റ്': 'internet', 'റീചാർജ്': 'recharge', 'ഇഎംഐ': 'EMI', 'ലോൺ': 'loan', 'കടം': 'loan',
+    'ഇൻഷുറൻസ്': 'insurance', 'ഫീസ്': 'fees', 'ട്യൂഷൻ': 'tuition', 'നികുതി': 'tax', 'മരുന്ന്': 'medicine',
+    'ഡോക്ടർ': 'doctor', 'ആശുപത്രി': 'hospital', 'മെഡിക്കൽ': 'pharmacy', 'ജിം': 'gym',
+    'ഷോപ്പിംഗ്': 'shopping', 'തുണി': 'clothes', 'വസ്ത്രം': 'clothes', 'ഡ്രസ്സ്': 'dress', 'സാരി': 'saree',
+    'ഷർട്ട്': 'shirt', 'ജീൻസ്': 'jeans', 'ചെരിപ്പ്': 'slippers', 'ഷൂ': 'shoes', 'ബാഗ്': 'bag', 'വാച്ച്': 'watch',
+    'ആമസോൺ': 'Amazon', 'ഫ്ലിപ്കാർട്ട്': 'Flipkart', 'മൊബൈൽ': 'mobile', 'ഫോൺ': 'phone', 'ലാപ്ടോപ്പ്': 'laptop',
+    'ചാർജർ': 'charger', 'സമ്മാനം': 'gift', 'ഗിഫ്റ്റ്': 'gift', 'പുസ്തകം': 'book', 'ബുക്ക്': 'book',
+    'സലൂൺ': 'salon',
+    'സിനിമ': 'movie', 'പടം': 'movie', 'മൂവി': 'movie', 'നെറ്റ്ഫ്ലിക്സ്': 'Netflix', 'പാർട്ടി': 'party',
+    'ടൂർ': 'trip', 'ട്രിപ്പ്': 'trip', 'പിക്നിക്': 'picnic',
+    'ശമ്പളം': 'salary', 'വേതനം': 'salary', 'സാലറി': 'salary', 'ബോണസ്': 'bonus', 'പലിശ': 'interest',
+    'കൈനീട്ടം': 'gift money',
+    'അമ്മ': 'mom', 'അച്ഛൻ': 'dad', 'ചേട്ടൻ': 'elder brother', 'അനിയൻ': 'younger brother',
+    'ചേച്ചി': 'elder sister', 'അനിയത്തി': 'younger sister', 'സുഹൃത്ത്': 'friend', 'സുഹൃത്തുക്കൾ': 'friends',
+    'കൂട്ടുകാർ': 'friends', 'കുട്ടികൾ': 'kids', 'വീട്': 'home', 'ഓഫീസ്': 'office', 'കട': 'shop',
+    'സ്കൂൾ': 'school', 'കോളേജ്': 'college', 'അമ്പലം': 'temple', 'കല്യാണം': 'wedding', 'പിറന്നാൾ': 'birthday',
+  },
+
   categories: {
     food: [
       'ഭക്ഷണം', 'ഊണ്', 'ചായ', 'കാപ്പി', 'കോഫി', 'ടിഫിൻ', 'പ്രാതൽ', 'ബ്രേക്ക്ഫാസ്റ്റ്', 'ലഞ്ച്', 'ഡിന്നർ',
