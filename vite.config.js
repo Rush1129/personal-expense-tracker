@@ -1,24 +1,10 @@
-import { createHash } from 'node:crypto'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// ACCESS_CODES=code1,code2 turns on the lock screen. Only salted SHA-256 hashes
-// reach the bundle (see src/access.js, which must hash the same way).
-function accessCodeHashes(mode) {
-  const { ACCESS_CODES = '' } = loadEnv(mode, process.cwd(), '')
-  return ACCESS_CODES.split(',')
-    .map((code) => code.trim().toLowerCase())
-    .filter(Boolean)
-    .map((code) => createHash('sha256').update(`spendwise:${code}`).digest('hex'))
-}
-
-export default defineConfig(({ mode }) => ({
+export default defineConfig(() => ({
   envPrefix: ['VITE_', 'SUPABASE_'],
-  define: {
-    __ACCESS_CODE_HASHES__: JSON.stringify(accessCodeHashes(mode)),
-  },
   // The on-device AI worker uses dynamic import(), which needs ES-module workers
   worker: {
     format: 'es',

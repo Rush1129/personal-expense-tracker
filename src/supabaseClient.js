@@ -26,6 +26,19 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
+// The session Supabase saved on this device, read without any network request.
+// It's still there when the access token has expired offline: Supabase only
+// drops it once the server rejects it, and refreshes it when back online.
+export function storedSession() {
+  if (!supabase) return null;
+  try {
+    const session = JSON.parse(localStorage.getItem(supabase.auth.storageKey) || 'null');
+    return session?.access_token && session.user?.id ? session : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function checkSupabaseHealth() {
   if (!supabase) {
     return { ok: false, error: 'Supabase is not configured (missing URL or Anon Key)' };

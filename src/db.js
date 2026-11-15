@@ -1,16 +1,69 @@
 import Dexie from 'dexie';
 import { v4 as uuidv4 } from 'uuid';
-import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { supabase, isSupabaseConfigured, storedSession } from './supabaseClient';
 
 // ==========================================
 // IndexedDB (offline-first local storage)
+// With cloud sync every account has its own cache on the device,
+// opened by openAccountDb() after sign-in. Offline-only mode (no
+// Supabase configured) has one cache and no accounts.
 // ==========================================
 
-export const db = new Dexie('SpendWiseDB');
+const LEGACY_DB = 'SpendWiseDB';
+const accountDbName = (userId) => `SpendWiseDB-${userId}`;
 
-db.version(1).stores({
-  transactions: '++id, type, amount, description, category, date, createdAt, updatedAt',
-});
+function openDb(name) {
+  const store = new Dexie(name);
+  store.version(1).stores({
+    transactions: '++id, type, amount, description, category, date, createdAt, updatedAt',
+  });
+  return store;
+}
+
+let db = isSupabaseConfigured ? null : openDb(LEGACY_DB);
+
+// Switches this device's cache to the signed-in account
+export async function openAccountDb(userId) {
+  await settle();
+  if (db?.name === accountDbName(userId)) return;
+  db?.close();
+  db = openDb(accountDbName(userId));
+  try {
+    await adoptLegacyChanges();
+  } catch (err) {
+    console.warn('Could not move changes from before accounts:', err);
+  }
+}
+
+// The version before accounts kept one cache per device. The first account to
+// sign in takes over its changes that hadn't uploaded yet; everything that had
+// uploaded comes back from the cloud.
+async function adoptLegacyChanges() {
+  if (!(await Dexie.exists(LEGACY_DB))) return;
+  const legacy = openDb(LEGACY_DB);
+  try {
+    const pending = await legacy.transactions.filter((t) => !!t.pending).toArray();
+    if (pending.length > 0) await db.transactions.bulkPut(pending);
+  } finally {
+    legacy.close();
+  }
+  await Dexie.delete(LEGACY_DB);
+}
+
+// Closes the account's cache after sign-out; `erase` also deletes it from the device
+export async function closeAccountDb(userId, { erase = false } = {}) {
+  await settle();
+  if (db && (!userId || db.name === accountDbName(userId))) {
+    db.close();
+    db = null;
+  }
+  if (erase && userId) await Dexie.delete(accountDbName(userId));
+}
+
+// Waits for an upload or download that's running, so it doesn't land in another account's cache
+function settle() {
+  return Promise.allSettled([refreshing, syncing]);
+}
 
 // ==========================================
 // Dual-mode CRUD: Supabase + IndexedDB
@@ -27,16 +80,44 @@ db.version(1).stores({
 
 const isLocalId = (id) => typeof id === 'string' && id.startsWith('local-');
 
+const TOKEN_MARGIN_MS = 120_000;
+const REFRESH_WAIT_MS = 4000;
+const REFRESH_RETRY_MS = 30_000;
+let refreshGaveUpAt = 0;
+
+// Whether a cloud request can work now: online, with a live sign-in. Without
+// one, row-level security shows an empty table and quietly ignores deletes, so
+// changes wait as pending instead. An expired token gets one short refresh
+// attempt; after that gives up, changes go straight to pending for a while
+// (Supabase keeps retrying in the background and the app syncs once it works).
+async function cloudReady() {
+  if (!isSupabaseConfigured || !navigator.onLine) return false;
+  const session = storedSession();
+  if (!session) return false;
+  if (session.expires_at * 1000 - Date.now() > TOKEN_MARGIN_MS) return true;
+  if (Date.now() - refreshGaveUpAt < REFRESH_RETRY_MS) return false;
+  const refreshed = await Promise.race([
+    supabase.auth.getSession().then(({ data }) => !!data.session, () => false),
+    new Promise((resolve) => setTimeout(() => resolve(false), REFRESH_WAIT_MS)),
+  ]);
+  if (!refreshed) refreshGaveUpAt = Date.now();
+  return refreshed;
+}
+
+const notReadyError = () => new Error(navigator.onLine ? 'Not signed in' : 'Offline');
+
 function withoutPending(row) {
   const copy = { ...row };
   delete copy.pending;
   return copy;
 }
 
-// A row to insert into Supabase, which assigns the id
+// A row to insert into Supabase, which assigns the id and the owner
+// (user_id defaults to the signed-in account)
 function cloudFields(row) {
   const fields = withoutPending(row);
   delete fields.id;
+  delete fields.user_id;
   return fields;
 }
 
@@ -94,6 +175,10 @@ export function syncPending() {
   if (!isSupabaseConfigured) return Promise.resolve(0);
   syncing ??= (async () => {
     lastSyncError = null;
+    if (!(await cloudReady())) {
+      lastSyncError = notReadyError().message;
+      return 0;
+    }
     let synced = 0;
     for (const row of await pendingRows().toArray()) {
       try {
@@ -113,6 +198,10 @@ export function syncPending() {
 
 export async function hasPendingChanges() {
   return (await pendingRows().count()) > 0;
+}
+
+export function countPendingChanges() {
+  return pendingRows().count();
 }
 
 // What's saved on this device, without waiting for the network
@@ -137,6 +226,7 @@ async function refreshFromCloud() {
   touchedDuringRefresh = touched;
   lastSyncError = null;
   try {
+    if (!(await cloudReady())) throw notReadyError();
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
@@ -200,6 +290,7 @@ export async function addTransaction(data) {
 
   if (isSupabaseConfigured) {
     try {
+      if (!(await cloudReady())) throw notReadyError();
       const { data: inserted, error } = await supabase
         .from('transactions')
         .insert([transaction])
@@ -231,6 +322,7 @@ export async function updateTransaction(id, data) {
 
   if (isSupabaseConfigured && !isLocalId(id)) {
     try {
+      if (!(await cloudReady())) throw notReadyError();
       const { data: updated, error } = await supabase
         .from('transactions')
         .update(updates)
@@ -263,6 +355,7 @@ export async function deleteTransaction(id) {
 
   if (isSupabaseConfigured && !isLocalId(id)) {
     try {
+      if (!(await cloudReady())) throw notReadyError();
       const { error } = await supabase
         .from('transactions')
         .delete()
@@ -283,6 +376,7 @@ export async function deleteTransaction(id) {
 export async function restoreTransaction(transaction) {
   if (isSupabaseConfigured && !isLocalId(transaction.id)) {
     try {
+      if (!(await cloudReady())) throw notReadyError();
       const row = withoutPending(transaction);
       // Upsert: if the delete never reached the cloud, the row is still there
       const { error } = await supabase
@@ -343,6 +437,8 @@ export async function exportAllData() {
   let transactions;
   if (isSupabaseConfigured) {
     try {
+      // Without a live sign-in the cloud would look empty, so use this device's copy
+      if (!(await cloudReady())) throw notReadyError();
       await syncPending();
       const { data, error } = await supabase
         .from('transactions')
@@ -374,7 +470,8 @@ export async function importAllData(jsonString) {
   // Clear and re-import
   if (isSupabaseConfigured) {
     try {
-      // Delete all existing in Supabase
+      if (!(await cloudReady())) throw notReadyError();
+      // Delete all of this account's entries in Supabase
       const { data: existing } = await supabase.from('transactions').select('id');
       if (existing?.length > 0) {
         const ids = existing.map(t => t.id);
