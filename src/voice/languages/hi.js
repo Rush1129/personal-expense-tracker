@@ -101,6 +101,91 @@ export default {
     'तो', 'ही', 'फिर', 'एक', 'दी', 'ली', 'दे', 'कर',
   ],
 
+  // ---- English descriptions (toEnglish.js) ----
+  // "X के साथ Y" → "Y with X"; "of" words are dropped ("बिजली का बिल" → "electricity bill")
+  posts: {
+    with: ['के साथ', 'साथ', 'संग'],
+    for: ['के लिए', 'लिए', 'के वास्ते'],
+    from: ['से'],
+    in: ['में'],
+    at: ['पर', 'पे'],
+    to: ['को'],
+    of: ['का', 'की', 'के'],
+  },
+  // दोस्तों, किताबें → plural
+  pluralMarks: ['ों', 'ें'],
+  glossary: {
+    // food
+    'खाना': 'food', 'खाने': 'food', 'भोजन': 'meal', 'नाश्ता': 'breakfast', 'नाश्ते': 'breakfast', 'लंच': 'lunch',
+    'डिनर': 'dinner', 'ब्रेकफ़ास्ट': 'breakfast', 'चाय': 'tea', 'कॉफ़ी': 'coffee', 'कॉफी': 'coffee',
+    'समोसा': 'samosa', 'समोसे': 'samosas', 'पकौड़े': 'pakoras', 'पकोड़े': 'pakoras', 'जलेबी': 'jalebi',
+    'मिठाई': 'sweets', 'पिज़्ज़ा': 'pizza', 'पिज्जा': 'pizza', 'बर्गर': 'burger', 'बिरयानी': 'biryani',
+    'डोसा': 'dosa', 'इडली': 'idli', 'वड़ा पाव': 'vada pav', 'पानी पूरी': 'pani puri', 'पानीपुरी': 'pani puri',
+    'गोलगप्पे': 'golgappe', 'चाट': 'chaat', 'मोमोज़': 'momos', 'नूडल्स': 'noodles', 'सैंडविच': 'sandwich',
+    'थाली': 'thali', 'पराठा': 'paratha', 'परांठा': 'paratha', 'रोटी': 'roti', 'होटल': 'hotel',
+    'रेस्टोरेंट': 'restaurant', 'रेस्टोरेन्ट': 'restaurant', 'ढाबा': 'dhaba', 'कैंटीन': 'canteen', 'मेस': 'mess',
+    'टिफ़िन': 'tiffin', 'स्विगी': 'Swiggy', 'ज़ोमैटो': 'Zomato', 'जोमाटो': 'Zomato', 'डोमिनोज़': "Domino's",
+    'जूस': 'juice', 'लस्सी': 'lassi', 'आइसक्रीम': 'ice cream', 'आइस क्रीम': 'ice cream', 'केक': 'cake',
+    'चॉकलेट': 'chocolate', 'बीयर': 'beer', 'दारू': 'alcohol', 'कोल्ड ड्रिंक': 'cold drink', 'नमकीन': 'snacks',
+    'बिस्कुट': 'biscuits', 'पाव भाजी': 'pav bhaji', 'छोले भटूरे': 'chole bhature', 'कचौरी': 'kachori',
+    'पानी': 'water', 'नारियल पानी': 'coconut water', 'ऑर्डर': 'order', 'मक्खन': 'butter', 'घी': 'ghee',
+    // transport
+    'ऑटो': 'auto', 'आटो': 'auto', 'रिक्शा': 'rickshaw', 'टैक्सी': 'taxi', 'कैब': 'cab', 'उबर': 'Uber',
+    'ऊबर': 'Uber', 'ओला': 'Ola', 'रैपिडो': 'Rapido', 'बस': 'bus', 'ट्रेन': 'train', 'रेल': 'train',
+    'मेट्रो': 'metro', 'लोकल ट्रेन': 'local train', 'पेट्रोल': 'petrol', 'डीज़ल': 'diesel', 'सीएनजी': 'CNG',
+    'पार्किंग': 'parking', 'टोल': 'toll', 'फ्लाइट': 'flight', 'टिकट': 'ticket', 'भाड़ा': 'fare',
+    'ऑटो का किराया': 'auto fare', 'बस का किराया': 'bus fare', 'ट्रेन का किराया': 'train fare',
+    'टैक्सी का किराया': 'taxi fare', 'सफ़र': 'trip', 'यात्रा': 'trip', 'गाड़ी': 'car', 'बाइक': 'bike',
+    'स्कूटर': 'scooter', 'सर्विसिंग': 'servicing', 'पंचर': 'puncture', 'टायर': 'tyre',
+    // groceries
+    'राशन': 'ration', 'किराना': 'groceries', 'किराने': 'groceries', 'सब्ज़ी': 'vegetables',
+    'सब्ज़ियां': 'vegetables', 'सब्ज़ियों': 'vegetables', 'फल': 'fruit', 'दूध': 'milk', 'दही': 'curd',
+    'पनीर': 'paneer', 'ब्रेड': 'bread', 'अंडे': 'eggs', 'अंडा': 'egg', 'चावल': 'rice', 'दाल': 'dal',
+    'आटा': 'flour', 'तेल': 'oil', 'चीनी': 'sugar', 'शक्कर': 'sugar', 'नमक': 'salt', 'मसाले': 'spices',
+    'मसाला': 'spices', 'आलू': 'potatoes', 'प्याज़': 'onions', 'टमाटर': 'tomatoes', 'साबुन': 'soap',
+    'शैंपू': 'shampoo', 'डिटर्जेंट': 'detergent', 'घर का सामान': 'household items', 'सामान': 'stuff',
+    'किलो': 'kg', 'लीटर': 'litre', 'दर्जन': 'dozen',
+    // bills
+    'किराया': 'rent', 'मकान किराया': 'house rent', 'घर का किराया': 'house rent', 'रूम का किराया': 'room rent',
+    'बिजली': 'electricity', 'बिजली का बिल': 'electricity bill', 'बिल': 'bill', 'पानी का बिल': 'water bill',
+    'गैस': 'gas', 'सिलेंडर': 'cylinder', 'गैस सिलेंडर': 'gas cylinder', 'वाईफ़ाई': 'WiFi', 'इंटरनेट': 'internet',
+    'ब्रॉडबैंड': 'broadband', 'रिचार्ज': 'recharge', 'मोबाइल रिचार्ज': 'mobile recharge',
+    'फ़ोन का बिल': 'phone bill', 'ईएमआई': 'EMI', 'लोन': 'loan', 'क़िस्त': 'instalment', 'बीमा': 'insurance',
+    'इंश्योरेंस': 'insurance', 'प्रीमियम': 'premium', 'मेंटेनेंस': 'maintenance', 'सोसाइटी': 'society',
+    'फ़ीस': 'fees', 'स्कूल फ़ीस': 'school fees', 'कॉलेज फ़ीस': 'college fees', 'ट्यूशन': 'tuition',
+    'कोचिंग': 'coaching', 'टैक्स': 'tax', 'दवा': 'medicine', 'दवाई': 'medicine', 'दवाइयां': 'medicines',
+    'दवाइयों': 'medicines', 'डॉक्टर': 'doctor', 'अस्पताल': 'hospital', 'हॉस्पिटल': 'hospital',
+    'मेडिकल': 'pharmacy', 'केमिस्ट': 'chemist', 'जिम': 'gym', 'कामवाली': 'maid', 'धोबी': 'laundry',
+    'लॉन्ड्री': 'laundry', 'प्रेस वाला': 'ironing',
+    // shopping
+    'शॉपिंग': 'shopping', 'कपड़े': 'clothes', 'कपड़ा': 'cloth', 'शर्ट': 'shirt', 'टीशर्ट': 'T-shirt',
+    'टी शर्ट': 'T-shirt', 'जींस': 'jeans', 'पैंट': 'pants', 'कुर्ता': 'kurta', 'साड़ी': 'saree', 'सूट': 'suit',
+    'ड्रेस': 'dress', 'जूते': 'shoes', 'जूता': 'shoes', 'चप्पल': 'slippers', 'सैंडल': 'sandals', 'बैग': 'bag',
+    'घड़ी': 'watch', 'अमेज़न': 'Amazon', 'अमेज़ॉन': 'Amazon', 'फ्लिपकार्ट': 'Flipkart', 'मिंत्रा': 'Myntra',
+    'मीशो': 'Meesho', 'फ़ोन': 'phone', 'मोबाइल': 'mobile', 'लैपटॉप': 'laptop', 'हेडफ़ोन': 'headphones',
+    'ईयरफ़ोन': 'earphones', 'चार्जर': 'charger', 'फ़र्नीचर': 'furniture', 'मेकअप': 'makeup',
+    'परफ़्यूम': 'perfume', 'गहने': 'jewellery', 'ज्वेलरी': 'jewellery', 'तोहफ़ा': 'gift', 'गिफ़्ट': 'gift',
+    'उपहार': 'gift', 'किताब': 'book', 'किताबें': 'books', 'कॉपी': 'notebook', 'पेन': 'pen',
+    'हेयरकट': 'haircut', 'बाल कटवाए': 'haircut', 'सैलून': 'salon', 'पार्लर': 'parlour', 'नाई': 'barber',
+    // entertainment
+    'फ़िल्म': 'movie', 'मूवी': 'movie', 'सिनेमा': 'cinema', 'पिक्चर': 'movie', 'मूवी टिकट': 'movie ticket',
+    'नेटफ्लिक्स': 'Netflix', 'हॉटस्टार': 'Hotstar', 'सब्सक्रिप्शन': 'subscription', 'गेम': 'game',
+    'पार्टी': 'party', 'ट्रिप': 'trip', 'घूमना': 'outing', 'घूमने': 'outing', 'छुट्टी': 'holiday',
+    'पिकनिक': 'picnic', 'कॉन्सर्ट': 'concert', 'मेला': 'fair',
+    // income
+    'सैलरी': 'salary', 'तनख़्वाह': 'salary', 'तनखा': 'salary', 'वेतन': 'salary', 'पगार': 'salary', 'बोनस': 'bonus',
+    'जेब खर्च': 'pocket money', 'पॉकेट मनी': 'pocket money', 'ब्याज': 'interest', 'निवेश': 'investment',
+    'शेयर': 'shares', 'म्यूचुअल फ़ंड': 'mutual fund', 'मुनाफ़ा': 'profit', 'क्लाइंट': 'client',
+    'प्रोजेक्ट': 'project', 'कमीशन': 'commission', 'शगुन': 'shagun', 'इनाम': 'prize', 'उधार': 'loan',
+    'रिफंड': 'refund', 'कैशबैक': 'cashback',
+    // people and places
+    'दोस्त': 'friend', 'मम्मी': 'mom', 'मां': 'mom', 'पापा': 'dad', 'पिताजी': 'father', 'भाई': 'brother',
+    'बहन': 'sister', 'दीदी': 'sister', 'बच्चे': 'kids', 'बच्चों': 'kids', 'परिवार': 'family', 'घर': 'home',
+    'ऑफ़िस': 'office', 'दफ़्तर': 'office', 'दुकान': 'shop', 'बाज़ार': 'market', 'स्कूल': 'school',
+    'कॉलेज': 'college', 'मंदिर': 'temple', 'शादी': 'wedding', 'जन्मदिन': 'birthday', 'बर्थडे': 'birthday',
+    'कंपनी': 'company',
+  },
+
   categories: {
     food: [
       'खाना', 'खाने', 'भोजन', 'नाश्ता', 'नाश्ते', 'लंच', 'डिनर', 'ब्रेकफ़ास्ट', 'चाय', 'कॉफ़ी', 'कॉफी', 'समोसा',

@@ -91,6 +91,35 @@ export default {
     'aur', 'bhi', 'toh', 'ek', 'ne',
   ],
 
+  // ---- English descriptions (toEnglish.js), only for sentences that look Hinglish ----
+  posts: {
+    with: ['ke saath', 'ke sath', 'ke sang', 'saath', 'sath'],
+    for: ['ke liye', 'ki liye', 'liye'],
+    from: ['se'],
+    in: ['mein', 'me'],
+    at: ['pe', 'par'],
+    to: ['ko'],
+    of: ['ka', 'ki', 'ke'],
+  },
+  glossary: {
+    aur: 'and', khana: 'food', khane: 'food', nashta: 'breakfast', naashta: 'breakfast', bhojan: 'meal', chai: 'tea',
+    samose: 'samosas', pakode: 'pakoras', pakore: 'pakoras', mithai: 'sweets', namkeen: 'snacks', paani: 'water',
+    pani: 'water', doodh: 'milk', dudh: 'milk', dahi: 'curd', chawal: 'rice', aata: 'flour', cheeni: 'sugar',
+    chini: 'sugar', namak: 'salt', anda: 'egg', ande: 'eggs', tel: 'oil', sabzi: 'vegetables', sabji: 'vegetables',
+    sabziyan: 'vegetables', kirana: 'groceries', rashan: 'ration', makkhan: 'butter', kilo: 'kg',
+    kiraya: 'rent', kiraaya: 'rent', bhada: 'fare', bhaada: 'fare', 'auto ka kiraya': 'auto fare', bijli: 'electricity',
+    'bijli ka bill': 'electricity bill', 'bijli bill': 'electricity bill', dawai: 'medicine', dawa: 'medicine',
+    davai: 'medicine', dawaiyan: 'medicines', kist: 'instalment', kisht: 'instalment', gaadi: 'car', gadi: 'car',
+    safar: 'trip', kapde: 'clothes', kapda: 'cloth', joote: 'shoes', juta: 'shoes', joota: 'shoes', ghadi: 'watch',
+    kitab: 'book', kitaben: 'books', kitabon: 'books', tohfa: 'gift', ghumna: 'outing', ghoomna: 'outing',
+    ghumne: 'outing', chhutti: 'holiday', tankhwah: 'salary', tankha: 'salary', vetan: 'salary', pagar: 'salary',
+    byaj: 'interest', byaaj: 'interest', munafa: 'profit', inaam: 'prize', 'jeb kharch': 'pocket money',
+    dost: 'friend', doston: 'friends', dosto: 'friends', yaar: 'friend', mummy: 'mom', mumma: 'mom', maa: 'mom',
+    papa: 'dad', bhai: 'brother', behen: 'sister', didi: 'sister', bachche: 'kids', bachchon: 'kids', ghar: 'home',
+    dukaan: 'shop', dukan: 'shop', bazaar: 'market', bazar: 'market', shaadi: 'wedding', shadi: 'wedding',
+    mandir: 'temple',
+  },
+
   // Latin-script category words; merged with the English keyword list
   categories: {
     food: [

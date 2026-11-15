@@ -187,13 +187,29 @@ Pick the language under **Settings → Voice input → Language**, or with the l
 | Kannada (`kn-IN`) | Basic | Digits, number words 1–10, the tens, ನೂರು and joined hundreds (ಐನೂರು), ಸಾವಿರ/ಲಕ್ಷ, ಇಂದು/ನಿನ್ನೆ/ಮೊನ್ನೆ, weekdays, ಬೆಳಿಗ್ಗೆ/ಸಂಜೆ, "7 ಗಂಟೆಗೆ", spend/receive verbs (ಕೊಟ್ಟೆ vs ಕೊಟ್ಟರು), "ಮತ್ತು", common keywords. |
 | Malayalam (`ml-IN`) | Basic | Digits, number words 1–10, the tens, നൂറ് and joined hundreds (അഞ്ഞൂറ്), ആയിരം/ലക്ഷം, ഇന്ന്/ഇന്നലെ, weekdays, രാവിലെ/വൈകുന്നേരം, "7 മണിക്ക്", spend/receive verbs (കൊടുത്തു vs തന്നു), "പിന്നെ", common keywords. |
 
+#### Descriptions saved in English
+
+With **Settings → Voice input → Save descriptions in English** on (the default), what you say is saved in English, so your entries list stays in one language. The review screen shows the English version before you save, so you can fix it; the "heard" line still shows what you said.
+
+| Said | Saved as |
+|------|----------|
+| दोस्तों के साथ डिनर | Dinner with friends |
+| बिजली का बिल · ऑटो का किराया | Electricity bill · Auto fare |
+| मम्मी से किताबों के लिए | Books from mom |
+| मित्रांसोबत जेवण (Marathi) | Meal with friends |
+| நண்பர்களுடன் சினிமா (Tamil) | Movie with friends |
+| doston ke saath dinner | Dinner with friends |
+| नरेश भैया | Naresh bhaiya |
+
+How it works ([`src/voice/languages/toEnglish.js`](src/voice/languages/toEnglish.js)): each language file has an English word list (food, transport, bills, shopping, people and places: about 280 words for Hindi, 185 for Marathi, 140–160 for the others and 90 for Hinglish) and its words for "with / for / from / in". Phrases are put in English order ("X के साथ Y" → "Y with X"), and "of" words are dropped ("बिजली का बिल" → "electricity bill"). Any word not on the list is written in English letters ([`transliterate.js`](src/voice/languages/transliterate.js)), the way people type Hinglish. Names come out right; other words come out readable but not translated. It runs instantly and offline with nothing to download. A real translation model would be better at full sentences, but the smallest one for Hindi alone is about 110 MB, and Chrome's built-in Translator works only on desktop, not Android. Descriptions in English letters also let the AI category model help when no keyword matches. Entries saved before this setting existed are not changed.
+
 Limits worth knowing:
 
 - **Needs the browser's speech service.** Chrome on Android sends the audio to Google's speech service, so Indian-language voice needs internet. The on-device Whisper tiny model is English-only, and the multilingual tiny model gets most Indian-language words wrong, so there is no offline fallback for these languages. Instead of guessing, the app says so and offers "Speak in English instead" or typing.
 - **iPhone:** Safari's speech recognition uses Apple's dictation. Hindi is supported; the other languages depend on the iOS version. If one isn't available, the app shows a message rather than failing quietly.
 - **What Chrome writes for these languages isn't documented,** so the parser accepts every form: Indian digits or 0–9, number words, native script and English loanwords in either script ("ऑटो" or "auto"). The sample sentences in the test script are written the way the recogniser usually writes them (native script, amounts as digits), but they were typed, not recorded on a phone.
 - **"Basic" languages** don't read long compound number words said in full (Tamil இருநூற்று ஐம்பது, Gujarati બસો પચાસ…). The recogniser normally writes amounts as digits, so this rarely matters; if it happens, the amount box is left empty to fill in.
-- **AI categories are English-only.** The MiniLM model doesn't understand Indian scripts, so non-English descriptions use the language's keyword list. A multilingual model (e.g. multilingual-e5-small) would need about 118 MB instead of 23 MB, so it isn't used.
+- **AI categories are English-only.** The MiniLM model doesn't understand Indian scripts, so categories come from the language's keyword list first; with "Save descriptions in English" on, the English version is then given to the AI model too. A multilingual model (e.g. multilingual-e5-small) would need about 118 MB instead of 23 MB, so it isn't used.
 - Short words that are also everyday words only count as numbers before a scale or currency word: "एक चाय 20" is ₹20, not ₹1, and "do sau" is 200 but "do" alone isn't 2.
 
 Run the parser checks with `npm run test:voice` (English cases included, so changes for one language can't quietly break another).

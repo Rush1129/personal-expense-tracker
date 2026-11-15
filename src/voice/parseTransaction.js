@@ -452,6 +452,7 @@ export function parseTransaction(input, now = new Date(), { defaultType = 'expen
     dateWasSpoken: !dateInfo.implicit,
     typeWasSpoken,
     lang: langId,
+    hinglish: lexs.includes(HINGLISH), // Hindi in English letters, for toEnglish()
   };
 }
 

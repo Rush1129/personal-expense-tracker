@@ -222,6 +222,24 @@ export default function Settings() {
         </div>
         <Divider />
         <button
+          onClick={() => updateVoiceSettings({ englishDescriptions: !voiceSettings.englishDescriptions })}
+          role="switch"
+          aria-checked={voiceSettings.englishDescriptions}
+          className={rowButton}
+        >
+          <RowIcon icon={Languages} />
+          <RowText
+            title="Save descriptions in English"
+            sub={
+              voiceSettings.englishDescriptions
+                ? 'Common words are translated and the rest written in English letters, e.g. "दोस्तों के साथ डिनर" becomes "Dinner with friends"'
+                : 'Descriptions are saved the way you said them'
+            }
+          />
+          <Switch on={voiceSettings.englishDescriptions} />
+        </button>
+        <Divider />
+        <button
           onClick={() => updateVoiceSettings({ smartCategories: !voiceSettings.smartCategories })}
           role="switch"
           aria-checked={voiceSettings.smartCategories}
@@ -231,7 +249,9 @@ export default function Settings() {
           <RowText
             title="AI category detection"
             sub={`On-device model picks a category when keywords don't match (~23 MB, one-time)${
-              indianLanguage ? `. English descriptions only; ${voiceLang.name} uses keywords` : ''
+              indianLanguage && !voiceSettings.englishDescriptions
+                ? `. English descriptions only; ${voiceLang.name} uses keywords`
+                : ''
             }`}
           />
           <Switch on={voiceSettings.smartCategories} />

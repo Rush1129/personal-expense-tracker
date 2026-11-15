@@ -6,6 +6,7 @@ import { matchCategoryByKeywords } from '../voice/categoryRules';
 import { classifyCategory, onModelProgress, warmUpModel } from '../voice/aiClient';
 import { useVoiceInput } from '../voice/useVoiceInput';
 import { VOICE_LANGUAGES, getVoiceLanguage, hasIndicScript } from '../voice/languages';
+import { toEnglish } from '../voice/languages/toEnglish';
 import {
   X, Mic, Square, Loader2, Keyboard, SendHorizontal, Check, SlidersHorizontal, CalendarClock,
   Sparkles, ArrowUpRight, ArrowDownLeft, ShieldCheck, RotateCcw, MessageSquareText, Languages, ChevronDown,
@@ -27,13 +28,21 @@ function withType(entry, type) {
   if (type === entry.type) return entry;
   let { category, categorySource } = entry;
   if (categorySource !== 'manual') {
-    const match = matchCategoryByKeywords(entry.description || entry.transcript, type, entry.lang);
+    const match = matchCategoryByKeywords(entry.spokenDescription || entry.description || entry.transcript, type, entry.lang);
     category = match?.category || 'other';
     categorySource = match ? 'keyword' : 'default';
   } else if (!getCategoriesByType(type).includes(category)) {
     category = 'other';
   }
   return { ...entry, type, category, categorySource };
+}
+
+// Descriptions are saved in English: "दोस्तों के साथ डिनर" → "Dinner with friends".
+// The spoken wording is kept on the entry (not saved) so keywords can be re-checked in it.
+function inEnglish(entry) {
+  if (entry.source === 'sms' || !entry.description) return entry;
+  const description = toEnglish(entry.description, entry);
+  return description === entry.description ? entry : { ...entry, description, spokenDescription: entry.description };
 }
 
 // initialText: text shared into the app (a bank SMS); skips the mic and goes straight to review
@@ -88,7 +97,7 @@ export default function VoiceEntry({ onClose, onEditDetails, initialText = '' })
 
   function handleText(text) {
     const parsed = parseTransactions(text, new Date(), { lang: voiceLang.code }).map((p, key) => ({
-      ...p,
+      ...(voiceSettings.englishDescriptions ? inEnglish(p) : p),
       key,
       amount: p.amount ? String(p.amount) : '',
     }));
