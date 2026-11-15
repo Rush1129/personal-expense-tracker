@@ -1,4 +1,4 @@
-import { CATEGORY_PROTOTYPES, categoriesForType } from './categoryRules';
+import { CATEGORY_PROTOTYPES, categoriesForType } from './categoryPrototypes';
 
 // Below this cosine similarity the description is too unlike every category,
 // so we leave it as "Other" rather than guess.

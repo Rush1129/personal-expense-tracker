@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { transcribeAudio, warmUpModel } from './aiClient';
+import { getVoiceLanguage } from './languages';
 
 const SpeechRecognitionImpl =
   typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
@@ -34,15 +35,35 @@ async function decodeTo16kMono(blob) {
   }
 }
 
+// Why voice can't run in an Indian language here. The on-device model (Whisper tiny.en)
+// only knows English, and the multilingual tiny model gets most Indian-language words
+// wrong, so instead of falling back and producing English nonsense we say what to do.
+function indicUnavailable(reason, name) {
+  if (reason === 'on-device') {
+    return `The on-device speech model only understands English. To speak ${name}, set Speech recognition to Auto in Settings, or type instead.`;
+  }
+  if (reason === 'language-not-supported') {
+    return `This browser's speech service doesn't support ${name}. Type instead, or pick another language.`;
+  }
+  if (reason === 'network') {
+    return `${name} voice needs an internet connection. Type instead, or switch to English to use the offline model.`;
+  }
+  return `This browser has no speech service for ${name}, and the on-device model only understands English. Type instead, or switch to English.`;
+}
+
 // Mic capture with two engines:
 //  - 'browser': Web Speech API (fast, live transcript; Chrome/Edge/Safari)
 //  - 'on-device': MediaRecorder + Whisper in a worker (private, works offline after first use)
 // preferredEngine 'auto' uses the browser engine and falls back to on-device when it is
-// missing or fails.
+// missing or fails. For Indian languages only the browser engine is used (see above).
 export function useVoiceInput({ preferredEngine = 'auto', lang = 'en-IN', onResult }) {
+  const english = lang.toLowerCase().startsWith('en');
+  const langName = getVoiceLanguage(lang).name;
   const [status, setStatus] = useState('idle'); // idle | listening | transcribing
   const [interim, setInterim] = useState('');
   const [error, setError] = useState(null);
+  // true when switching to English would make voice work again
+  const [offerEnglish, setOfferEnglish] = useState(false);
   const [level, setLevel] = useState(0);
   const [engine, setEngine] = useState(() =>
     preferredEngine === 'on-device' || !browserSpeechSupported ? 'on-device' : 'browser'
@@ -145,6 +166,17 @@ export function useVoiceInput({ preferredEngine = 'auto', lang = 'en-IN', onResu
     recorder.start();
   }, [finish]);
 
+  const cannotSpeak = useCallback(
+    (reason) => {
+      setError(indicUnavailable(reason, langName));
+      // English still works through the browser (language missing) or the on-device model
+      setOfferEnglish(reason === 'language-not-supported' || recordingSupported);
+      setStatus('idle');
+      setLevel(0);
+    },
+    [langName]
+  );
+
   const startBrowser = useCallback(() => {
     setEngine('browser');
     const rec = new SpeechRecognitionImpl();
@@ -163,7 +195,10 @@ export function useVoiceInput({ preferredEngine = 'auto', lang = 'en-IN', onResu
       setInterim(text);
     };
     rec.onerror = (e) => {
-      if (FALLBACK_ERRORS.has(e.error) && recordingSupported) {
+      if (FALLBACK_ERRORS.has(e.error) && !english) {
+        session.fellBack = true; // nothing to fall back to: say why instead
+        cannotSpeak(e.error);
+      } else if (FALLBACK_ERRORS.has(e.error) && recordingSupported) {
         browserEngineBroken = true;
         session.fellBack = true;
         startRecorder();
@@ -187,17 +222,24 @@ export function useVoiceInput({ preferredEngine = 'auto', lang = 'en-IN', onResu
       rec.start();
       setStatus('listening');
     } catch {
-      startRecorder();
+      if (sessionRef.current === session) sessionRef.current = null;
+      if (english) startRecorder();
+      else cannotSpeak('unavailable');
     }
-  }, [lang, finish, startRecorder]);
+  }, [lang, english, finish, startRecorder, cannotSpeak]);
 
   const start = useCallback(() => {
     if (sessionRef.current) return;
     setError(null);
+    setOfferEnglish(false);
     setInterim('');
-    if (preferredEngine !== 'on-device' && browserSpeechSupported && !browserEngineBroken) startBrowser();
+    if (!english) {
+      if (preferredEngine === 'on-device') cannotSpeak('on-device');
+      else if (!browserSpeechSupported || browserEngineBroken) cannotSpeak('unavailable');
+      else startBrowser();
+    } else if (preferredEngine !== 'on-device' && browserSpeechSupported && !browserEngineBroken) startBrowser();
     else startRecorder();
-  }, [preferredEngine, startBrowser, startRecorder]);
+  }, [english, preferredEngine, startBrowser, startRecorder, cannotSpeak]);
 
   // Abort without producing a result
   const cancel = useCallback(() => {
@@ -222,5 +264,11 @@ export function useVoiceInput({ preferredEngine = 'auto', lang = 'en-IN', onResu
 
   useEffect(() => cancel, [cancel]);
 
-  return { status, interim, error, level, engine, start, stop, cancel, clearError: () => setError(null) };
+  return {
+    status, interim, error, offerEnglish, level, engine, start, stop, cancel,
+    clearError: () => {
+      setError(null);
+      setOfferEnglish(false);
+    },
+  };
 }

@@ -1,10 +1,16 @@
 import { matchCategoryByKeywords } from './categoryRules';
 import { looksLikeBankSms, parseBankSms } from './parseSms';
+import { HINGLISH, canon, resolveLexicons } from './languages';
 
 // Turns a spoken sentence such as
 //   "Spent two hundred and fifty rupees on lunch at Domino's yesterday at 2 pm"
 // into { type, amount, description, category, date, hasTime }.
 // Pure and synchronous so it can run on every interim transcript.
+//
+// Indian languages: the word lists in ./languages turn native currency, number,
+// date and time words into the forms the English rules below already read
+// ("कल शाम 7 बजे" → "yesterday evening at 7 o'clock", "ढाई सौ रुपये" → "250 rs"),
+// and add their own spend/receive verbs, "and" words and description fillers.
 
 const ONES = {
   zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
@@ -34,14 +40,16 @@ const EXPENSE_CUES = /\b(spent|spend|paid|pay|bought|buy|purchased|purchase|debi
 
 function normalise(input) {
   return input
+    .replace(/(\d)(?=[\u0900-\u0DFF])|([\u0900-\u0DFF])(?=\d)/g, '$1$2 ') // "250रुपये" → "250 रुपये"
+    .replace(/(रु|रू|રૂ|ரூ|రూ|ರೂ|രൂ)\./g, '$1') // रु. → रु
     .replace(/₹\s*/g, ' rs ')
     .replace(/(\d),(?=\d)/g, '$1') // 2,500 and 1,00,000
     .replace(/\b([ap])\.\s?m\b\.?/gi, '$1m') // p.m. → pm
     .replace(/\brs\b\.?/gi, 'rs')
     .replace(/(\d)\s*\/-/g, '$1 rs')
     .replace(/(?<!\d)\.|\.(?!\d)/g, ' ') // drop sentence dots, keep 2.5
-    .replace(/[,!?;"“”]/g, ' ')
-    .replace(/(\p{L})-(\p{L})/gu, '$1 $2') // twenty-five → twenty five
+    .replace(/[,!?;"“”।॥]/g, ' ')
+    .replace(/([\p{L}\p{M}])-(\p{L})/gu, '$1 $2') // twenty-five → twenty five
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -56,9 +64,21 @@ function convertOrdinals(text) {
     .replace(new RegExp(`\\b(${ord})(?=\\s+(?:of\\b|${MONTH_RE}\\b))`, 'gi'), (o) => `${ORDINALS[o.toLowerCase()]}th`);
 }
 
-// "two thousand five hundred" → "2500", "2.5 lakh" → "250000", "10k" → "10000"
-function wordsToDigits(text) {
-  const tokens = text.split(' ');
+const CURRENCY_WORD = /^(?:rs|inr|rupees?|rupaye|rupay|bucks)$/i;
+
+// "two thousand five hundred" → "2500", "2.5 lakh" → "250000", "10k" → "10000",
+// and with Indian-language lists: "ढाई सौ" → "250", "साडेतीनशे" → "350", "5 ஆயிரம்" → "5000"
+function wordsToDigits(text, lexs = []) {
+  const tables = lexs.map((l) => l.numbers);
+  const tokens = !tables.length
+    ? text.split(' ')
+    : text.split(' ').flatMap((t) => {
+        for (const n of tables) {
+          const parts = n.splitFused(t);
+          if (parts) return parts;
+        }
+        return [t];
+      });
   const out = [];
   let i = 0;
 
@@ -73,28 +93,41 @@ function wordsToDigits(text) {
     if (has(BIG, w)) return { kind: 'big', value: BIG[w] };
     if ((w === 'a' || w === 'an') && next && /^(hundred|thousand|lakh|lac|crore|grand)$/i.test(next)) return { kind: 'a' };
     if (w === 'and') return { kind: 'and' };
+    for (const n of tables) {
+      const info = n.lookup(w);
+      if (info) return info;
+    }
     return null;
   };
 
+  // hblock: a whole "N hundred" word (दोनशे, இருநூறு); bblock: a whole "N thousand" word (ஐயாயிரம்);
+  // mod: साढ़े/सवा/पौने, which adjust the number after them by +½, +¼, −¼
   const canFollow = {
-    start: ['digit', 'ones', 'teen', 'tens', 'a', 'hundred', 'big'],
+    start: ['digit', 'ones', 'teen', 'tens', 'a', 'hundred', 'big', 'hblock', 'bblock', 'mod'],
     digit: ['big', 'hundred'],
     ones: ['hundred', 'big'],
     teen: ['hundred', 'big'],
     tens: ['ones', 'hundred', 'big'],
     hundred: ['ones', 'teen', 'tens', 'big', 'and', 'digit'],
-    big: ['digit', 'ones', 'teen', 'tens', 'and', 'a'],
+    hblock: ['ones', 'teen', 'tens', 'big', 'digit'],
+    big: ['digit', 'ones', 'teen', 'tens', 'and', 'a', 'hblock', 'bblock'],
+    bblock: ['digit', 'ones', 'teen', 'tens', 'hblock'],
     and: ['digit', 'ones', 'teen', 'tens'],
     a: ['hundred', 'big'],
+    mod: ['digit', 'ones', 'teen', 'hundred', 'big', 'hblock'],
   };
 
   while (i < tokens.length) {
     let prev = 'start';
     let total = 0;
     let current = 0;
+    let mod = 0;
     let j = i;
     let lastGood = -1;
     let lastValue = 0;
+    // Words like "एक" (also "a") or "do" (also English) count only before a scale or currency word
+    let onlyRestricted = true;
+    let lastOnlyRestricted = true;
 
     while (j < tokens.length) {
       const info = kindOf(tokens[j], tokens[j + 1]);
@@ -105,18 +138,37 @@ function wordsToDigits(text) {
         if (!nxt || !canFollow.and.includes(nxt.kind)) break;
       }
       // A lone "k"/"grand"/"thousand" with nothing before it is not a number
-      if (prev === 'start' && info.kind === 'big' && !/^(thousand|lakh|lac|crore|hazaa?r|hajar)/i.test(tokens[j])) break;
+      if (prev === 'start' && info.kind === 'big' && !info.native && !/^(thousand|lakh|lac|crore|hazaa?r|hajar)/i.test(tokens[j])) break;
 
-      if (info.kind === 'digit' || info.kind === 'ones' || info.kind === 'teen' || info.kind === 'tens') current += info.value;
-      else if (info.kind === 'hundred') current = (current || 1) * 100;
-      else if (info.kind === 'big') { total += (current || 1) * info.value; current = 0; }
+      if (info.kind === 'digit' || info.kind === 'ones' || info.kind === 'teen' || info.kind === 'tens') {
+        current += info.value + mod;
+        mod = 0;
+      } else if (info.kind === 'hundred') {
+        current = ((current || 1) + mod) * 100;
+        mod = 0;
+      } else if (info.kind === 'hblock') {
+        current += info.value + mod * 100;
+        mod = 0;
+      } else if (info.kind === 'big') {
+        total += ((current || 1) + mod) * info.value;
+        current = 0;
+        mod = 0;
+      } else if (info.kind === 'bblock') total += info.value;
+      else if (info.kind === 'mod') mod = info.value;
 
+      const counts = info.kind !== 'and' && info.kind !== 'a' && info.kind !== 'mod';
+      if (counts && !info.restricted) onlyRestricted = false;
       prev = info.kind;
-      if (info.kind !== 'and' && info.kind !== 'a') { lastGood = j; lastValue = total + current; }
+      if (counts) {
+        lastGood = j;
+        lastValue = total + current;
+        lastOnlyRestricted = onlyRestricted;
+      }
       j++;
       if (info.complete) break;
     }
 
+    if (lastGood >= i && lastOnlyRestricted && !CURRENCY_WORD.test(tokens[lastGood + 1] || '')) lastGood = -1;
     if (lastGood >= i) {
       out.push(String(Math.round(lastValue * 100) / 100));
       i = lastGood + 1;
@@ -126,6 +178,16 @@ function wordsToDigits(text) {
     }
   }
   return out.join(' ');
+}
+
+// Everything that turns words into the forms the extractors read, in order:
+// spelling → punctuation → native currency → number words → native date/time words
+function prepare(input, lexs) {
+  let text = normalise(canon(input));
+  for (const l of lexs) if (l.currency) text = text.replace(l.currency, ' rs ');
+  text = wordsToDigits(convertOrdinals(text.replace(/\s+/g, ' ').trim()), lexs);
+  for (const l of lexs) for (const [re, replacement] of l.dateRules) text = text.replace(re, replacement);
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 // ---------- Span helpers ----------
@@ -319,9 +381,10 @@ function extractAmount(state) {
 const FILLER = /\b(i|i've|i have|i had|i just|just|today's|spent|spend|spending|paid|pay|paying|bought|buy|purchased|purchase|received|receive|got paid|got|get|earned|earn|credited|debited|add|added|log|logged|record|new|an? expense(?: of)?|expense|expenses|income|rupees?|rupaye|rupay|rs|inr|bucks|amount|worth|total|costing|cost)\b/gi;
 const EDGE_WORDS = /^(?:on|for|of|at|towards|in|and|the|a|an|with|by|as|about|around|was|is|it)\b\s*|\s*\b(?:on|for|of|at|to|towards|in|and|the|a|an|with|from|by|as|about|around|was|is|it)$/i;
 
-function cleanDescription(text) {
-  let d = text
-    .replace(FILLER, ' ')
+function cleanDescription(text, lexs = []) {
+  let d = text.replace(FILLER, ' ');
+  for (const l of lexs) if (l.filler) d = d.replace(l.filler, ' ');
+  d = d
     .replace(/\s+/g, ' ')
     // "dividend of from mutual fund" → "dividend from mutual fund" once the amount is gone
     .replace(/\b(?:of|for|on|worth)\s+(?=(?:from|to|for|on|at|of|in)\b)/gi, '')
@@ -330,6 +393,10 @@ function cleanDescription(text) {
   do {
     prev = d;
     d = d.replace(EDGE_WORDS, '').trim();
+    for (const l of lexs) {
+      if (l.edgeStart) d = d.replace(l.edgeStart, '').trim();
+      if (l.edgeEnd) d = d.replace(l.edgeEnd, '').trim();
+    }
   } while (d !== prev && d);
   if (!d) return '';
   return d.charAt(0).toUpperCase() + d.slice(1);
@@ -338,10 +405,14 @@ function cleanDescription(text) {
 // ---------- Main ----------
 
 // defaultType: used when the sentence has no income or expense wording
-export function parseTransaction(input, now = new Date(), { defaultType = 'expense' } = {}) {
+// lang: the voice language ('hi-IN', 'ta-IN', …); text in another Indian script is still read
+// lexicons: internal, so the parts of one sentence share the lists picked for the whole of it
+export function parseTransaction(input, now = new Date(), { defaultType = 'expense', lang, lexicons } = {}) {
   const transcript = (input || '').trim();
   if (looksLikeBankSms(transcript)) return parseBankSms(transcript, now);
-  const text = wordsToDigits(convertOrdinals(normalise(transcript)));
+  const lexs = lexicons || resolveLexicons(transcript, lang);
+  const native = lexs.find((l) => l !== HINGLISH);
+  const text = prepare(transcript, lexs);
   const state = { masked: text };
 
   const dateInfo = extractDate(state, now);
@@ -349,12 +420,16 @@ export function parseTransaction(input, now = new Date(), { defaultType = 'expen
   if (dateInfo.period && !timeInfo.period) timeInfo.period = dateInfo.period;
   const amount = extractAmount(state);
 
-  const description = cleanDescription(state.masked);
+  const description = cleanDescription(state.masked, lexs);
 
+  // "Someone gave me" wording (पापा ने 500 दिए, அப்பா கொடுத்தார்) wins over the "gave" verb
+  const said = (key) => lexs.some((l) => l[key]?.test(text));
+  const income = INCOME_CUES.test(text) || said('income');
+  const expense = EXPENSE_CUES.test(text) || said('expense');
   let type = defaultType;
   let typeWasSpoken = true;
-  if (/\bgot paid\b/i.test(text) || (INCOME_CUES.test(text) && !EXPENSE_CUES.test(text))) type = 'income';
-  else if (EXPENSE_CUES.test(text)) type = 'expense';
+  if (/\bgot paid\b/i.test(text) || said('incomeStrong') || (income && !expense)) type = 'income';
+  else if (expense) type = 'expense';
   else typeWasSpoken = false;
 
   const resolved = resolveTime(timeInfo, dateInfo.date, now, text);
@@ -362,7 +437,8 @@ export function parseTransaction(input, now = new Date(), { defaultType = 'expen
   if (resolved) date.setHours(resolved.hour, resolved.minute, 0, 0);
   else date.setHours(now.getHours(), now.getMinutes(), 0, 0);
 
-  const match = matchCategoryByKeywords(description, type) || matchCategoryByKeywords(text, type);
+  const langId = native?.id || 'en';
+  const match = matchCategoryByKeywords(description, type, langId) || matchCategoryByKeywords(text, type, langId);
 
   return {
     transcript,
@@ -375,22 +451,27 @@ export function parseTransaction(input, now = new Date(), { defaultType = 'expen
     hasTime: !!resolved,
     dateWasSpoken: !dateInfo.implicit,
     typeWasSpoken,
+    lang: langId,
   };
 }
 
 // ---------- Several entries in one sentence ----------
 
-// Commas, sentence breaks and "and" / "&" / "plus" / "aur" can separate entries.
+// Commas, sentence breaks and "and" / "&" / "plus" / "aur" (or the language's own "and":
+// और, आणि, மற்றும், …) can separate entries.
 // Number words are merged first, so "two hundred and fifty" stays one amount.
-const SEPARATOR = /(\s*\|\s*|\s+(?:and|&|plus|aur)\s+)/i;
+const AND_WORDS = ['and', '&', 'plus', 'aur'];
 
-function splitParts(transcript) {
+function splitParts(transcript, lexs) {
   const marked = transcript
     .replace(/(\d),(?=\d)/g, '$1') // 2,500
     .replace(/\b([ap])\.\s?m\b\.?/gi, '$1m') // p.m.
     .replace(/\brs\b\./gi, 'rs') // Rs.
-    .replace(/(?<!\d)\.(?!\d)|[,;\n]+/g, ' | ');
-  const tokens = wordsToDigits(convertOrdinals(normalise(marked))).split(SEPARATOR);
+    .replace(/(रु|रू|રૂ|ரூ|రూ|ರೂ|രൂ)\./g, '$1') // रु.
+    .replace(/(?<!\d)\.(?!\d)|[,;\n।॥]+/g, ' | ');
+  const words = [...AND_WORDS, ...lexs.flatMap((l) => l.and)];
+  const separator = new RegExp(`(\\s*\\|\\s*|\\s+(?:${words.join('|')})\\s+)`, 'iu');
+  const tokens = prepare(marked, lexs).split(separator);
 
   // tokens alternate: part, separator, part, …
   const parts = [];
@@ -402,20 +483,21 @@ function splitParts(transcript) {
 }
 
 const joinText = (a, joiner, b) => `${a}${joiner.includes('|') ? ' ' : ` ${joiner.trim()} `}${b}`;
-const hasAmount = (text, now) => Number(parseTransaction(text, now).amount) > 0;
 
 // "Chai 30 and samosa 20" → two entries. A part without its own amount stays with
 // its neighbour ("bread and butter 60" is one entry). A date or income/expense cue
 // said once applies to the parts that don't have their own.
-export function parseTransactions(input, now = new Date()) {
+export function parseTransactions(input, now = new Date(), { lang } = {}) {
   const transcript = (input || '').trim();
   if (!transcript || looksLikeBankSms(transcript)) return [parseTransaction(transcript, now)];
 
+  const lexicons = resolveLexicons(transcript, lang);
+  const parse = (text, opts) => parseTransaction(text, now, { lexicons, ...opts });
   const groups = [];
   let carry = '';
-  for (const part of splitParts(transcript)) {
+  for (const part of splitParts(transcript, lexicons)) {
     const text = carry ? joinText(carry, part.joiner, part.text) : part.text;
-    if (hasAmount(part.text, now)) {
+    if (Number(parse(part.text).amount) > 0) {
       groups.push(text);
       carry = '';
     } else if (groups.length && !carry) {
@@ -428,13 +510,13 @@ export function parseTransactions(input, now = new Date()) {
     if (groups.length) groups[groups.length - 1] = joinText(groups[groups.length - 1], ' ', carry);
     else groups.push(carry);
   }
-  if (groups.length < 2) return [parseTransaction(transcript, now)];
+  if (groups.length < 2) return [parse(transcript)];
 
-  let entries = groups.map((g) => parseTransaction(g, now));
+  let entries = groups.map((g) => parse(g));
 
   const cued = entries.find((e) => e.typeWasSpoken);
   if (cued) {
-    entries = entries.map((e, i) => (e.typeWasSpoken ? e : parseTransaction(groups[i], now, { defaultType: cued.type })));
+    entries = entries.map((e, i) => (e.typeWasSpoken ? e : parse(groups[i], { defaultType: cued.type })));
   }
 
   const spokenDays = [...new Set(entries.filter((e) => e.dateWasSpoken).map((e) => new Date(e.date).toDateString()))];
