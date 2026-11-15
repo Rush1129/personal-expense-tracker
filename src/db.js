@@ -261,10 +261,13 @@ async function refreshFromCloud() {
   }
 }
 
-// Uploads every entry on this device to an empty cloud table and caches the
-// uploaded rows (with their cloud ids). If the upload fails nothing changes here.
+// The account has nothing in the cloud: uploads the entries added on this
+// device that never reached the cloud, and caches the uploaded rows (with their
+// cloud ids). Rows that came from the cloud are dropped, not uploaded: if this
+// account can't see them they belong to someone else or were deleted. If the
+// upload fails nothing changes here.
 async function seedEmptyCloud() {
-  const local = await localTransactions();
+  const local = (await localTransactions()).filter((t) => t.pending === 'add');
   let uploaded = [];
   if (local.length > 0) {
     const { data, error } = await supabase.from('transactions').insert(local.map(cloudFields)).select();
